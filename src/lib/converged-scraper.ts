@@ -1,5 +1,4 @@
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
 
 interface PageContent {
   url: string;
@@ -27,11 +26,6 @@ export class ConvergedNetworksScraper {
   async scrapeCompanyInfo(): Promise<CompanyData> {
     console.log('[ConvergedScraper] Starting comprehensive scrape of Converged Networks');
     
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
     try {
       // Scrape main page and key subpages
       const pagesToScrape = [
@@ -57,28 +51,28 @@ export class ConvergedNetworksScraper {
         
         try {
           console.log(`[ConvergedScraper] Scraping ${url}`);
-          const page = await browser.newPage();
-          await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
-          const content = await page.content();
-          const title = await page.title();
+          const response = await fetch(url);
+          if (!response.ok) {
+            console.log(`[ConvergedScraper] Failed to fetch ${url}: ${response.status}`);
+            continue;
+          }
+          
+          const content = await response.text();
+          const $ = cheerio.load(content);
+          const title = $('title').text() || 'Converged Networks';
           
           pageContents.push({ url, title, content });
           this.visitedUrls.add(url);
-          
-          await page.close();
         } catch (error) {
-          console.log(`[ConvergedScraper] Failed to scrape ${url}:`, error.message);
+          console.log(`[ConvergedScraper] Failed to scrape ${url}:`, error instanceof Error ? error.message : String(error));
         }
       }
-
-      await browser.close();
       
       // Process all collected content
       return this.extractCompanyData(pageContents);
       
     } catch (error) {
-      console.error('[ConvergedScraper] Browser error:', error);
-      await browser.close();
+      console.error('[ConvergedScraper] Scraping error:', error);
       throw error;
     }
   }
@@ -195,7 +189,7 @@ export class ConvergedNetworksScraper {
   }
 
   private extractCapabilities($: cheerio.CheerioAPI, textContent: string): string {
-    const capabilities = [];
+    const capabilities: string[] = [];
     
     // Look for capability keywords
     const capabilityPhrases = [
@@ -348,14 +342,15 @@ export class ConvergedNetworksScraper {
   private cleanupData(data: CompanyData): CompanyData {
     // Clean up each field
     Object.keys(data).forEach(key => {
-      if (typeof data[key] === 'string') {
+      const typedKey = key as keyof CompanyData;
+      if (typeof data[typedKey] === 'string') {
         // Remove extra whitespace
-        data[key] = data[key].replace(/\s+/g, ' ').trim();
+        data[typedKey] = data[typedKey].replace(/\s+/g, ' ').trim();
         // Remove duplicate lines
-        if (data[key].includes('\n')) {
-          const lines = data[key].split('\n');
+        if (data[typedKey].includes('\n')) {
+          const lines = data[typedKey].split('\n');
           const unique = [...new Set(lines)];
-          data[key] = unique.join('\n');
+          data[typedKey] = unique.join('\n');
         }
       }
     });

@@ -1,6 +1,5 @@
 import axios from 'axios';
 import cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
 
 export interface ScrapedContent {
   url: string;
@@ -53,44 +52,8 @@ export async function scrapeWebPage(url: string): Promise<ScrapedContent> {
       scrapedAt: new Date()
     };
   } catch (error) {
-    console.error('Basic scraping failed, trying with Puppeteer:', error);
-    return await scrapeWithPuppeteer(url);
+    console.error('Scraping failed:', error);
+    throw new Error(`Failed to scrape ${url}: ${error}`);
   }
 }
 
-async function scrapeWithPuppeteer(url: string): Promise<ScrapedContent> {
-  let browser;
-  
-  try {
-    browser = await puppeteer.launch({ 
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-    
-    const title = await page.title();
-    
-    const content = await page.evaluate(() => {
-      const scripts = document.querySelectorAll('script, style, nav, header, footer');
-      scripts.forEach(el => el.remove());
-      
-      const mainContent = document.querySelector('main, article, [role="main"], #content, .content');
-      return (mainContent || document.body).innerText;
-    });
-    
-    return {
-      url,
-      title,
-      content: content.trim(),
-      scrapedAt: new Date()
-    };
-  } catch (error) {
-    throw new Error(`Failed to scrape ${url}: ${error}`);
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
-  }
-}

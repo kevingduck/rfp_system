@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('[Generate Draft] Sending progress:', data);
     res.write(`data: ${JSON.stringify(data)}\n\n`);
     // Force flush the response
-    if (res.flush) res.flush();
+    if ((res as any).flush) (res as any).flush();
   };
 
   try {

@@ -51,9 +51,9 @@ export class RFPGenerator {
     const db = await openDb();
     
     const project = await db.get(
-      'SELECT p.*, o.name as organization_name FROM projects p 
+      `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
-       WHERE p.id = ? AND p.project_type = "RFP"',
+       WHERE p.id = ? AND p.project_type = "RFP"`,
       this.projectId
     );
     
@@ -96,9 +96,9 @@ export class RFPGenerator {
     
     const db = await openDb();
     const project = await db.get(
-      'SELECT p.*, o.name as organization_name FROM projects p 
+      `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
-       WHERE p.id = ?',
+       WHERE p.id = ?`,
       this.projectId
     );
     const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');

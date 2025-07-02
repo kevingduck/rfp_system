@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: rfp-system
+    runtime: node
+    buildCommand: ./build.sh
+    startCommand: ./start.sh
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    disk:
+      name: rfp-data
+      mountPath: /opt/render/project/src
+      sizeGB: 1
+    healthCheckPath: /api/health

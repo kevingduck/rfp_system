@@ -19,6 +19,9 @@ interface DocumentContext {
     url: string;
     title: string;
     content: string;
+    metadata?: {
+      summary_cache?: string;
+    };
   }>;
   companyInfo?: any;
   rfiQuestions?: Array<{
@@ -34,12 +37,12 @@ interface DocumentContext {
     }>;
   };
   knowledgeBase?: {
-    won_proposals?: Array<{ filename: string; content: string; }>;
-    sow?: Array<{ filename: string; content: string; }>;
-    k12_erate?: Array<{ filename: string; content: string; }>;
-    engineering?: Array<{ filename: string; content: string; }>;
-    project_plans?: Array<{ filename: string; content: string; }>;
-    legal?: Array<{ filename: string; content: string; }>;
+    won_proposals?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
+    sow?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
+    k12_erate?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
+    engineering?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
+    project_plans?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
+    legal?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
   };
 }
 

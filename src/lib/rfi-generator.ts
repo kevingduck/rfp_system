@@ -324,7 +324,7 @@ Please note:
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ text: 'Issuing Organization:', bold: true })],
+              children: [new Paragraph({ children: [new TextRun({ text: 'Issuing Organization:', bold: true })] })],
               width: { size: 30, type: WidthType.PERCENTAGE }
             }),
             new TableCell({
@@ -336,7 +336,7 @@ Please note:
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ text: 'Issue Date:', bold: true })]
+              children: [new Paragraph({ children: [new TextRun({ text: 'Issue Date:', bold: true })] })]
             }),
             new TableCell({
               children: [new Paragraph(data.issueDate)]
@@ -346,7 +346,7 @@ Please note:
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ text: 'Response Due Date:', bold: true })]
+              children: [new Paragraph({ children: [new TextRun({ text: 'Response Due Date:', bold: true })] })]
             }),
             new TableCell({
               children: [new Paragraph(data.dueDate)]
@@ -356,7 +356,7 @@ Please note:
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ text: 'Contact:', bold: true })]
+              children: [new Paragraph({ children: [new TextRun({ text: 'Contact:', bold: true })] })]
             }),
             new TableCell({
               children: [
@@ -422,8 +422,7 @@ Please note:
         
         paragraphs.push(
           new Paragraph({
-            text: '* Required question',
-            italics: true,
+            children: [new TextRun({ text: '* Required question', italics: true })],
             spacing: { before: 200 }
           })
         );

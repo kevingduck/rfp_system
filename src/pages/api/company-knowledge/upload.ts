@@ -58,8 +58,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let metadata = {};
     
     try {
-      const parsed = await parseDocument(filepath, file.mimetype || '');
-      content = parsed.content;
+      const parsed = await parseDocument(filepath);
+      content = parsed.text;
       metadata = parsed.metadata || {};
     } catch (parseError) {
       console.error('Error parsing document:', parseError);

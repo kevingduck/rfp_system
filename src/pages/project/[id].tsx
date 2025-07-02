@@ -23,6 +23,9 @@ interface WebSource {
   title: string;
   content: string;
   scrapedAt: string;
+  metadata?: {
+    summary_cache?: string;
+  };
 }
 
 interface Project {
