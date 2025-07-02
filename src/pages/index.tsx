@@ -30,9 +30,16 @@ export default function Home() {
     try {
       const res = await fetch('/api/projects');
       const data = await res.json();
-      setProjects(data);
+      // Check if data is an array, if not (error response), set empty array
+      if (Array.isArray(data)) {
+        setProjects(data);
+      } else {
+        console.error('Failed to fetch projects:', data.error || 'Unknown error');
+        setProjects([]);
+      }
     } catch (error) {
       console.error('Failed to fetch projects:', error);
+      setProjects([]);
     }
   };
 

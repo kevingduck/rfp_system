@@ -146,10 +146,15 @@ export default function SettingsPage() {
       const res = await fetch('/api/company-knowledge');
       if (res.ok) {
         const files = await res.json();
-        setKnowledgeFiles(files);
+        // Ensure files is an array
+        setKnowledgeFiles(Array.isArray(files) ? files : []);
+      } else {
+        console.error('Failed to fetch knowledge files:', res.status);
+        setKnowledgeFiles([]);
       }
     } catch (error) {
       console.error('Failed to fetch knowledge files:', error);
+      setKnowledgeFiles([]);
     }
   };
 

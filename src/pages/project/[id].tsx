@@ -82,10 +82,15 @@ export default function ProjectPage() {
       const res = await fetch(`/api/projects/${id}/documents`);
       if (res.ok) {
         const data = await res.json();
-        setDocuments(data);
+        // Ensure data is an array
+        setDocuments(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Failed to fetch documents:', res.status);
+        setDocuments([]);
       }
     } catch (error) {
       console.error('Failed to fetch documents:', error);
+      setDocuments([]);
     }
   };
   
@@ -94,10 +99,15 @@ export default function ProjectPage() {
       const res = await fetch(`/api/projects/${id}/sources`);
       if (res.ok) {
         const data = await res.json();
-        setWebSources(data);
+        // Ensure data is an array
+        setWebSources(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Failed to fetch web sources:', res.status);
+        setWebSources([]);
       }
     } catch (error) {
       console.error('Failed to fetch web sources:', error);
+      setWebSources([]);
     }
   };
   
