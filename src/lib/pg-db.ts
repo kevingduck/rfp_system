@@ -10,6 +10,11 @@ export const pool = new Pool({
   }
 });
 
+// Direct query function for PostgreSQL
+export async function query(text: string, params?: any[]) {
+  return pool.query(text, params);
+}
+
 // Helper functions to match SQLite API
 export async function openDb() {
   try {

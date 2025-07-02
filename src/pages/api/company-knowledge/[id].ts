@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,22 +10,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid ID' });
   }
 
-  const db = await openDb();
-
   if (req.method === 'DELETE') {
     try {
       // Get file info first
-      const file = await db.get(
-        'SELECT filename FROM company_knowledge WHERE id = ?',
+      const result = await query(
+        'SELECT filename FROM company_knowledge WHERE id = $1',
         [id]
       );
+      const file = result.rows[0];
 
       if (!file) {
         return res.status(404).json({ error: 'File not found' });
       }
 
       // Delete from database
-      await db.run('DELETE FROM company_knowledge WHERE id = ?', [id]);
+      await query('DELETE FROM company_knowledge WHERE id = $1', [id]);
 
       // Delete physical file
       try {

@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import { parseDocument } from '@/lib/document-parser';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -17,7 +17,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const db = await openDb();
   const form = formidable({ 
     uploadDir: path.join(process.cwd(), 'uploads'),
     keepExtensions: true,
@@ -78,9 +77,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Save to database
     const id = uuidv4();
-    const result = await db.run(`
+    const result = await query(`
       INSERT INTO company_knowledge (id, category, filename, original_filename, content, metadata, file_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [
       id,
       category,
