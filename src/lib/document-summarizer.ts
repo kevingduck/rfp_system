@@ -1,7 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!
 });
 
 export interface DocumentSummary {
@@ -85,7 +90,7 @@ Document content:
 ${content}`;
 
     try {
-      console.log(`[DocumentSummarizer] Sending to Claude Sonnet 3.5 for summarization...`);
+      console.log(`[DocumentSummarizer] Sending to Groq for fast summarization...`);
       const startTime = Date.now();
       
       let response;
@@ -94,8 +99,8 @@ ${content}`;
       
       while (retries < maxRetries) {
         try {
-          response = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
+          response = await groq.chat.completions.create({
+            model: 'llama-3.1-70b-versatile',
             max_tokens: 2000,
             temperature: 0.3,
             messages: [{
@@ -107,7 +112,7 @@ ${content}`;
         } catch (error: any) {
           if (error.status === 429 && retries < maxRetries - 1) {
             retries++;
-            const retryAfter = parseInt(error.headers?.['retry-after'] || '60');
+            const retryAfter = 5; // Groq typically has shorter retry windows
             console.log(`[DocumentSummarizer] Rate limited, waiting ${retryAfter}s before retry ${retries}/${maxRetries}`);
             await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
           } else {
@@ -121,9 +126,9 @@ ${content}`;
       }
       
       const duration = Date.now() - startTime;
-      console.log(`[DocumentSummarizer] Claude Sonnet 3.5 responded in ${duration}ms`);
+      console.log(`[DocumentSummarizer] Groq responded in ${duration}ms`);
       
-      const result = response.content[0].type === 'text' ? response.content[0].text : '';
+      const result = response.choices[0]?.message?.content || '';
       const summary = this.parseSummaryResponse(result, content.length);
       console.log(`[DocumentSummarizer] Summary extracted - ${summary.summaryLength} chars, ${summary.keyPoints.length} key points`);
       
@@ -164,8 +169,8 @@ Provide a concise summary (max 300 words):`;
         
         while (retries < maxRetries) {
           try {
-            response = await anthropic.messages.create({
-              model: 'claude-3-5-sonnet-20241022',
+            response = await groq.chat.completions.create({
+              model: 'llama-3.1-70b-versatile',
               max_tokens: 500,
               temperature: 0.3,
               messages: [{
@@ -177,7 +182,7 @@ Provide a concise summary (max 300 words):`;
           } catch (error: any) {
             if (error.status === 429 && retries < maxRetries - 1) {
               retries++;
-              const retryAfter = parseInt(error.headers?.['retry-after'] || '60');
+              const retryAfter = 5; // Groq typically has shorter retry windows
               console.log(`[DocumentSummarizer] Rate limited on chunk ${i + 1}, waiting ${retryAfter}s before retry ${retries}/${maxRetries}`);
               await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
             } else {
@@ -187,7 +192,7 @@ Provide a concise summary (max 300 words):`;
         }
         
         if (response) {
-          const summary = response.content[0].type === 'text' ? response.content[0].text : '';
+          const summary = response.choices[0]?.message?.content || '';
           chunkSummaries.push(summary);
         } else {
           throw new Error('Failed to get response after retries');
@@ -229,8 +234,8 @@ ${combinedSummary}`;
       
       while (retries < maxRetries) {
         try {
-          response = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
+          response = await groq.chat.completions.create({
+            model: 'llama-3.1-70b-versatile',
             max_tokens: 2000,
             temperature: 0.3,
             messages: [{
@@ -242,7 +247,7 @@ ${combinedSummary}`;
         } catch (error: any) {
           if (error.status === 429 && retries < maxRetries - 1) {
             retries++;
-            const retryAfter = parseInt(error.headers?.['retry-after'] || '60');
+            const retryAfter = 5; // Groq typically has shorter retry windows
             console.log(`[DocumentSummarizer] Rate limited on final summary, waiting ${retryAfter}s before retry ${retries}/${maxRetries}`);
             await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
           } else {
@@ -255,7 +260,7 @@ ${combinedSummary}`;
         throw new Error('Failed to get response after retries');
       }
       
-      const result = response.content[0].type === 'text' ? response.content[0].text : '';
+      const result = response.choices[0]?.message?.content || '';
       return this.parseSummaryResponse(result, content.length);
     } catch (error) {
       console.error('Final summarization error:', error);
