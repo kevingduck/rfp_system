@@ -2,6 +2,8 @@ const { Pool } = require('pg');
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
 
+console.log('Using database URL:', connectionString.replace(/:[^:@]+@/, ':****@')); // Log URL with password hidden
+
 const pool = new Pool({
   connectionString,
   ssl: {
@@ -10,9 +12,13 @@ const pool = new Pool({
 });
 
 async function initializeDatabase() {
-  const client = await pool.connect();
+  let client;
   
   try {
+    console.log('Connecting to database...');
+    client = await pool.connect();
+    console.log('Connected successfully');
+    
     console.log('Creating tables...');
     
     // Create tables
@@ -170,9 +176,20 @@ async function initializeDatabase() {
     console.error('Error initializing database:', error);
     throw error;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
     await pool.end();
   }
 }
 
-initializeDatabase().then(() => process.exit(0)).catch(() => process.exit(1));
+initializeDatabase()
+  .then(() => {
+    console.log('Database initialization completed successfully');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Database initialization failed:', error);
+    console.error('Full error:', JSON.stringify(error, null, 2));
+    process.exit(1);
+  });
