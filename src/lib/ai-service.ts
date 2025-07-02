@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { openDb } from './db';
+import { query } from './pg-db';
 import { DocumentSummarizer, DocumentSummary } from './document-summarizer';
 
 const anthropic = new Anthropic({
@@ -55,23 +55,22 @@ export class AIService {
   
   private async cacheSummary(type: 'document' | 'web_source' | 'knowledge', identifier: string, summary: DocumentSummary): Promise<void> {
     try {
-      const db = await openDb();
       const summaryJson = JSON.stringify(summary);
       const now = new Date().toISOString();
       
       if (type === 'document') {
-        await db.run(
-          'UPDATE documents SET summary_cache = ?, summary_generated_at = ? WHERE filename = ?',
+        await query(
+          'UPDATE documents SET summary_cache = $1, summary_generated_at = $2 WHERE filename = $3',
           [summaryJson, now, identifier]
         );
       } else if (type === 'web_source') {
-        await db.run(
-          'UPDATE web_sources SET summary_cache = ?, summary_generated_at = ? WHERE url = ?',
+        await query(
+          'UPDATE web_sources SET summary_cache = $1, summary_generated_at = $2 WHERE url = $3',
           [summaryJson, now, identifier]
         );
       } else if (type === 'knowledge') {
-        await db.run(
-          'UPDATE company_knowledge SET summary_cache = ?, summary_generated_at = ? WHERE original_filename = ?',
+        await query(
+          'UPDATE company_knowledge SET summary_cache = $1, summary_generated_at = $2 WHERE original_filename = $3',
           [summaryJson, now, identifier]
         );
       }

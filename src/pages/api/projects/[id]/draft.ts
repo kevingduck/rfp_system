@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -8,18 +8,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project ID' });
   }
 
-  const db = await openDb();
-
   if (req.method === 'GET') {
     try {
       // Get the most recent draft for this project
-      const draft = await db.get(
+      const result = await query(
         `SELECT * FROM drafts 
-         WHERE project_id = ? 
+         WHERE project_id = $1 
          ORDER BY created_at DESC 
          LIMIT 1`,
         [id]
       );
+      const draft = result.rows[0];
 
       if (!draft) {
         return res.status(404).json({ error: 'No draft found' });
@@ -43,8 +42,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } else if (req.method === 'DELETE') {
     try {
       // Delete all drafts for this project
-      await db.run(
-        'DELETE FROM drafts WHERE project_id = ?',
+      await query(
+        'DELETE FROM drafts WHERE project_id = $1',
         [id]
       );
 
@@ -58,19 +57,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { sections, metadata } = req.body;
 
       // Update the most recent draft
-      const draft = await db.get(
-        'SELECT id FROM drafts WHERE project_id = ? ORDER BY created_at DESC LIMIT 1',
+      const draftResult = await query(
+        'SELECT id FROM drafts WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
         [id]
       );
+      const draft = draftResult.rows[0];
 
       if (!draft) {
         return res.status(404).json({ error: 'No draft found to update' });
       }
 
-      await db.run(
+      await query(
         `UPDATE drafts 
-         SET content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
+         SET content = $1, metadata = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
         [JSON.stringify(sections), JSON.stringify(metadata), draft.id]
       );
 

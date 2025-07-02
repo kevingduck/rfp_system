@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query, pool } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') {
@@ -13,22 +13,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid request' });
   }
 
-  const db = await openDb();
+  const client = await pool.connect();
 
   try {
-    await db.run('BEGIN TRANSACTION');
+    await client.query('BEGIN');
 
     for (const question of questions) {
-      await db.run(
-        'UPDATE rfi_questions SET position = ?, order_index = ? WHERE id = ? AND project_id = ?',
+      await client.query(
+        'UPDATE rfi_questions SET position = $1, order_index = $2 WHERE id = $3 AND project_id = $4',
         [question.order_index, question.order_index, question.id, id]
       );
     }
 
-    await db.run('COMMIT');
+    await client.query('COMMIT');
     res.status(200).json({ success: true });
   } catch (error) {
-    await db.run('ROLLBACK');
+    await client.query('ROLLBACK');
     res.status(500).json({ error: 'Failed to reorder questions' });
+  } finally {
+    client.release();
   }
 }

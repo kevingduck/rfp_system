@@ -65,10 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         );
       } else {
         // Create new record
-        const id = Math.random().toString(36).substr(2, 9);
         await query(
           `INSERT INTO company_info (
-            id,
             company_name,
             description,
             services,
@@ -81,9 +79,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             email,
             phone,
             address
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [id,
-          company_name,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [company_name,
           description,
           services,
           capabilities,
