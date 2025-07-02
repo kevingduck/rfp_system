@@ -1,18 +1,46 @@
 import { Pool } from 'pg';
 
-// Use environment variable with fallback for local development
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
+// Validate required environment variables
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is not set!');
+  console.error('Please add DATABASE_URL to your .env.local file');
+  console.error('Example: DATABASE_URL=postgresql://user:password@host:port/database?sslmode=require');
+}
 
+const connectionString = process.env.DATABASE_URL || '';
+
+// Create pool with error handling
 export const pool = new Pool({
   connectionString,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  // Add connection pooling settings
+  max: 20, // maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // how long a client is allowed to remain idle before being closed
+  connectionTimeoutMillis: 10000, // how long to wait for a connection
 });
 
-// Direct query function for PostgreSQL
+// Add pool error handler
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+});
+
+// Direct query function for PostgreSQL with error handling
 export async function query(text: string, params?: any[]) {
-  return pool.query(text, params);
+  try {
+    return await pool.query(text, params);
+  } catch (error: any) {
+    // Add better error logging
+    console.error('Database query error:', {
+      query: text,
+      params: params,
+      error: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    throw error;
+  }
 }
 
 // Helper functions to match SQLite API

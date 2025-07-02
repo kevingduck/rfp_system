@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType } from 'docx';
-import { openDb } from './db';
+import { query } from './pg-db';
 import { AIService } from './ai-service';
 
 export interface RFPSection {
@@ -48,35 +48,38 @@ export class RFPGenerator {
   }
   
   private async collectRFPData(chatContext?: any): Promise<RFPData> {
-    const db = await openDb();
-    
-    const project = await db.get(
+    const projectResult = await query(
       `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
-       WHERE p.id = ? AND p.project_type = "RFP"`,
-      [this.projectId]
+       WHERE p.id = $1 AND p.project_type = $2`,
+      [this.projectId, 'RFP']
     );
+    const project = projectResult.rows[0];
     
     if (!project) {
       throw new Error('RFP project not found');
     }
     
-    const sections = await db.all(
-      'SELECT * FROM project_sections WHERE project_id = ? ORDER BY order_index',
+    const sectionsResult = await query(
+      'SELECT * FROM project_sections WHERE project_id = $1 ORDER BY order_index',
       [this.projectId]
     );
+    const sections = sectionsResult.rows;
     
-    const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
+    const companyInfoResult = await query('SELECT * FROM company_info LIMIT 1');
+    const companyInfo = companyInfoResult.rows[0];
     
-    const documents = await db.all(
-      'SELECT * FROM documents WHERE project_id = ?',
+    const documentsResult = await query(
+      'SELECT * FROM documents WHERE project_id = $1',
       [this.projectId]
     );
+    const documents = documentsResult.rows;
     
-    const webSources = await db.all(
-      'SELECT * FROM web_sources WHERE project_id = ?',
+    const webSourcesResult = await query(
+      'SELECT * FROM web_sources WHERE project_id = $1',
       [this.projectId]
     );
+    const webSources = webSourcesResult.rows;
     
     return {
       projectName: project.name,
@@ -94,14 +97,15 @@ export class RFPGenerator {
   private async buildSections(sections: any[], documents: any[], webSources: any[], chatContext?: any): Promise<RFPSection[]> {
     console.log(`[RFPGenerator] Building sections with AI - ${documents.length} documents, ${webSources.length} web sources`);
     
-    const db = await openDb();
-    const project = await db.get(
+    const projectResult = await query(
       `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
-       WHERE p.id = ?`,
+       WHERE p.id = $1`,
       [this.projectId]
     );
-    const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
+    const project = projectResult.rows[0];
+    const companyInfoResult = await query('SELECT * FROM company_info LIMIT 1');
+    const companyInfo = companyInfoResult.rows[0];
     
     // Use AI to generate comprehensive content
     const aiContent = await this.aiService.generateRFPContent({
@@ -206,8 +210,8 @@ export class RFPGenerator {
   }
   
   private async generateCompanyOverview(): Promise<string> {
-    const db = await openDb();
-    const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
+    const companyInfoResult = await query('SELECT * FROM company_info LIMIT 1');
+    const companyInfo = companyInfoResult.rows[0];
     
     if (companyInfo) {
       return `${companyInfo.company_name} ${companyInfo.description || 'is a leading provider of VoIP solutions.'}

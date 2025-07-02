@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import fs from 'fs/promises';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -9,24 +9,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project or document ID' });
   }
 
-  const db = await openDb();
-
   switch (req.method) {
     case 'DELETE':
       try {
         // Get the document to find the file path
-        const document = await db.get(
-          'SELECT * FROM documents WHERE id = ? AND project_id = ?',
+        const documentResult = await query(
+          'SELECT * FROM documents WHERE id = $1 AND project_id = $2',
           [documentId, id]
         );
+        const document = documentResult.rows[0];
 
         if (!document) {
           return res.status(404).json({ error: 'Document not found' });
         }
 
         // Delete from database
-        await db.run(
-          'DELETE FROM documents WHERE id = ? AND project_id = ?',
+        await query(
+          'DELETE FROM documents WHERE id = $1 AND project_id = $2',
           [documentId, id]
         );
 

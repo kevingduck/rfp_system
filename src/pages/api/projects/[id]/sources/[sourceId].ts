@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id, sourceId } = req.query;
@@ -8,14 +8,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project or source ID' });
   }
 
-  const db = await openDb();
-
   switch (req.method) {
     case 'DELETE':
       try {
         // Delete from database
-        await db.run(
-          'DELETE FROM web_sources WHERE id = ? AND project_id = ?',
+        await query(
+          'DELETE FROM web_sources WHERE id = $1 AND project_id = $2',
           [sourceId, id]
         );
 

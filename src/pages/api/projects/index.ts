@@ -13,8 +13,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            ORDER BY p.created_at DESC`
         );
         res.status(200).json(result.rows);
-      } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch projects' });
+      } catch (error: any) {
+        console.error('Failed to fetch projects:', error);
+        res.status(500).json({ 
+          error: 'Failed to fetch projects',
+          details: error.message,
+          code: error.code 
+        });
       }
       break;
 

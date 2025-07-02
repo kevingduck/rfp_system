@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
-import { openDb } from './db';
+import { query } from './pg-db';
 import { AIService } from './ai-service';
 
 export interface RFISection {
@@ -56,41 +56,46 @@ export class RFIGenerator {
   }
   
   private async collectRFIData(chatContext?: any): Promise<RFIData> {
-    const db = await openDb();
-    
-    const project = await db.get(
-      'SELECT * FROM projects WHERE id = ? AND project_type = "RFI"',
-      [this.projectId]
+    const projectResult = await query(
+      'SELECT * FROM projects WHERE id = $1 AND project_type = $2',
+      [this.projectId, 'RFI']
     );
+    const project = projectResult.rows[0];
     
     if (!project) {
       throw new Error('RFI project not found');
     }
     
-    const organization = await db.get(
-      'SELECT * FROM organizations WHERE id = ?',
+    const organizationResult = await query(
+      'SELECT * FROM organizations WHERE id = $1',
       [project.organization_id]
     );
+    const organization = organizationResult.rows[0];
     
-    const questions = await db.all(
-      'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY category, order_index',
+    const questionsResult = await query(
+      'SELECT * FROM rfi_questions WHERE project_id = $1 ORDER BY category, order_index',
       [this.projectId]
     );
+    const questions = questionsResult.rows;
     
-    const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
+    const companyInfoResult = await query('SELECT * FROM company_info LIMIT 1');
+    const companyInfo = companyInfoResult.rows[0];
     
-    const documents = await db.all(
-      'SELECT * FROM documents WHERE project_id = ?',
+    const documentsResult = await query(
+      'SELECT * FROM documents WHERE project_id = $1',
       [this.projectId]
     );
+    const documents = documentsResult.rows;
     
-    const webSources = await db.all(
-      'SELECT * FROM web_sources WHERE project_id = ?',
+    const webSourcesResult = await query(
+      'SELECT * FROM web_sources WHERE project_id = $1',
       [this.projectId]
     );
+    const webSources = webSourcesResult.rows;
     
     // Fetch knowledge base files
-    const knowledgeFiles = await db.all('SELECT * FROM company_knowledge');
+    const knowledgeFilesResult = await query('SELECT * FROM company_knowledge');
+    const knowledgeFiles = knowledgeFilesResult.rows;
     
     // Organize knowledge base by category
     const knowledgeBase: any = {};
@@ -205,8 +210,8 @@ export class RFIGenerator {
   }
   
   private async generateIntroduction(): Promise<string> {
-    const db = await openDb();
-    const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
+    const companyInfoResult = await query('SELECT * FROM company_info LIMIT 1');
+    const companyInfo = companyInfoResult.rows[0];
     
     return `${companyInfo?.company_name || 'We'} appreciate the opportunity to respond to your Request for Information (RFI) regarding telecommunications and VoIP solutions. We are excited to share how our proven solutions and expertise can address your organization's communication needs.
 
