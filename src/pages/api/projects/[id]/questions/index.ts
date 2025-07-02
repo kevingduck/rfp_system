@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const questions = await db.all(
           'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY order_index, category',
-          id
+          [id]
         );
         res.status(200).json(questions);
       } catch (error) {
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const question = await db.get(
           'SELECT * FROM rfi_questions WHERE id = ?',
-          questionId
+          [questionId]
         );
 
         res.status(201).json(question);

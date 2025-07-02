@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Get file info first
       const file = await db.get(
         'SELECT filename FROM company_knowledge WHERE id = ?',
-        id
+        [id]
       );
 
       if (!file) {
@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Delete from database
-      await db.run('DELETE FROM company_knowledge WHERE id = ?', id);
+      await db.run('DELETE FROM company_knowledge WHERE id = ?', [id]);
 
       // Delete physical file
       const filepath = path.join(process.cwd(), 'uploads', 'knowledge', file.filename);

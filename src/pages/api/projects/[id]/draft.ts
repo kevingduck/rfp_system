@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
          WHERE project_id = ? 
          ORDER BY created_at DESC 
          LIMIT 1`,
-        id
+        [id]
       );
 
       if (!draft) {
@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Delete all drafts for this project
       await db.run(
         'DELETE FROM drafts WHERE project_id = ?',
-        id
+        [id]
       );
 
       res.json({ success: true });
@@ -60,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Update the most recent draft
       const draft = await db.get(
         'SELECT id FROM drafts WHERE project_id = ? ORDER BY created_at DESC LIMIT 1',
-        id
+        [id]
       );
 
       if (!draft) {
@@ -71,9 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         `UPDATE drafts 
          SET content = ?, metadata = ?, updated_at = datetime('now')
          WHERE id = ?`,
-        JSON.stringify(sections),
-        JSON.stringify(metadata),
-        draft.id
+        [JSON.stringify(sections), JSON.stringify(metadata), draft.id]
       );
 
       res.json({ success: true });

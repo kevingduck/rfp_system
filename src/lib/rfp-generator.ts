@@ -54,7 +54,7 @@ export class RFPGenerator {
       `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
        WHERE p.id = ? AND p.project_type = "RFP"`,
-      this.projectId
+      [this.projectId]
     );
     
     if (!project) {
@@ -63,19 +63,19 @@ export class RFPGenerator {
     
     const sections = await db.all(
       'SELECT * FROM project_sections WHERE project_id = ? ORDER BY order_index',
-      this.projectId
+      [this.projectId]
     );
     
     const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
     
     const documents = await db.all(
       'SELECT * FROM documents WHERE project_id = ?',
-      this.projectId
+      [this.projectId]
     );
     
     const webSources = await db.all(
       'SELECT * FROM web_sources WHERE project_id = ?',
-      this.projectId
+      [this.projectId]
     );
     
     return {
@@ -99,7 +99,7 @@ export class RFPGenerator {
       `SELECT p.*, o.name as organization_name FROM projects p 
        LEFT JOIN organizations o ON p.organization_id = o.id 
        WHERE p.id = ?`,
-      this.projectId
+      [this.projectId]
     );
     const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
     

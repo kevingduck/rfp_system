@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const question = await db.get(
           'SELECT * FROM rfi_questions WHERE id = ?',
-          questionId
+          [questionId]
         );
 
         res.status(200).json(question);

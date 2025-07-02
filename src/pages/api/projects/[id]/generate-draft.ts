@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const project = await db.get(
       'SELECT * FROM projects WHERE id = ?',
-      id
+      [id]
     );
 
     if (!project) {
@@ -50,9 +50,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     sendProgress('Collecting documents and sources...', 20);
 
     const [documents, webSources, organization, companyInfo] = await Promise.all([
-      db.all('SELECT *, summary_cache, summary_generated_at FROM documents WHERE project_id = ?', id),
-      db.all('SELECT *, summary_cache, summary_generated_at FROM web_sources WHERE project_id = ?', id),
-      db.get('SELECT * FROM organizations WHERE id = ?', project.organization_id),
+      db.all('SELECT *, summary_cache, summary_generated_at FROM documents WHERE project_id = ?', [id]),
+      db.all('SELECT *, summary_cache, summary_generated_at FROM web_sources WHERE project_id = ?', [id]),
+      db.get('SELECT * FROM organizations WHERE id = ?', [project.organization_id]),
       db.get('SELECT * FROM company_info LIMIT 1')
     ]);
 
@@ -93,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (project.project_type === 'RFI') {
       const rfiQuestions = await db.all(
         'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY category, order_index',
-        id
+        [id]
       );
 
       sendProgress('Summarizing documents...', 50);

@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const documents = await db.all(
           'SELECT * FROM documents WHERE project_id = ? ORDER BY created_at DESC',
-          id
+          [id]
         );
 
         // Parse the content and metadata for each document

@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const sources = await db.all(
           'SELECT * FROM web_sources WHERE project_id = ? ORDER BY scraped_at DESC',
-          id
+          [id]
         );
 
         res.status(200).json(sources);

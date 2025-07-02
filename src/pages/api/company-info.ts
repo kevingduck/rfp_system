@@ -50,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             address = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?`,
-          company_name,
+          [company_name,
           description,
           services,
           capabilities,
@@ -62,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           email,
           phone,
           address,
-          existing.id
+          existing.id]
         );
       } else {
         // Create new record
@@ -83,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             phone,
             address
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id,
+          [id,
           company_name,
           description,
           services,
@@ -95,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           website,
           email,
           phone,
-          address
+          address]
         );
       }
 

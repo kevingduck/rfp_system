@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            FROM projects p 
            LEFT JOIN organizations o ON p.organization_id = o.id 
            WHERE p.id = ?`,
-          id
+          [id]
         );
 
         if (!project) {

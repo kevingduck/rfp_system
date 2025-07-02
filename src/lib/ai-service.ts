@@ -62,17 +62,17 @@ export class AIService {
       if (type === 'document') {
         await db.run(
           'UPDATE documents SET summary_cache = ?, summary_generated_at = ? WHERE filename = ?',
-          summaryJson, now, identifier
+          [summaryJson, now, identifier]
         );
       } else if (type === 'web_source') {
         await db.run(
           'UPDATE web_sources SET summary_cache = ?, summary_generated_at = ? WHERE url = ?',
-          summaryJson, now, identifier
+          [summaryJson, now, identifier]
         );
       } else if (type === 'knowledge') {
         await db.run(
           'UPDATE company_knowledge SET summary_cache = ?, summary_generated_at = ? WHERE original_filename = ?',
-          summaryJson, now, identifier
+          [summaryJson, now, identifier]
         );
       }
       

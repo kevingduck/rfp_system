@@ -60,7 +60,7 @@ export class RFIGenerator {
     
     const project = await db.get(
       'SELECT * FROM projects WHERE id = ? AND project_type = "RFI"',
-      this.projectId
+      [this.projectId]
     );
     
     if (!project) {
@@ -69,24 +69,24 @@ export class RFIGenerator {
     
     const organization = await db.get(
       'SELECT * FROM organizations WHERE id = ?',
-      project.organization_id
+      [project.organization_id]
     );
     
     const questions = await db.all(
       'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY category, order_index',
-      this.projectId
+      [this.projectId]
     );
     
     const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
     
     const documents = await db.all(
       'SELECT * FROM documents WHERE project_id = ?',
-      this.projectId
+      [this.projectId]
     );
     
     const webSources = await db.all(
       'SELECT * FROM web_sources WHERE project_id = ?',
-      this.projectId
+      [this.projectId]
     );
     
     // Fetch knowledge base files

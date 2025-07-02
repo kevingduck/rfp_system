@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get project info
     const project = await db.get(
       'SELECT * FROM projects WHERE id = ?',
-      id
+      [id]
     );
     
     if (!project || project.project_type !== 'RFI') {
@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get uploaded documents
     const documents = await db.all(
       'SELECT * FROM documents WHERE project_id = ?',
-      id
+      [id]
     );
     
     // Generate smart questions using AI

@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const project = await db.get(
           'SELECT * FROM projects WHERE id = ?',
-          projectId
+          [projectId]
         );
 
         res.status(201).json(project);

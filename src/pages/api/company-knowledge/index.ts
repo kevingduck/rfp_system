@@ -7,14 +7,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       // First check if table exists
-      const tableExists = await db.get(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='company_knowledge'"
-      );
-      
-      if (!tableExists) {
-        // Table doesn't exist, return empty array
-        return res.status(200).json([]);
-      }
+      // In PostgreSQL, we can just try to query and handle any errors
+      // The table is created during initialization, so it should always exist
       
       const files = await db.all(`
         SELECT id, category, filename, original_filename, uploaded_at 
