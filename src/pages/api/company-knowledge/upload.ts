@@ -41,8 +41,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Create uploads directory if it doesn't exist
     const uploadsDir = path.join(process.cwd(), 'uploads', 'knowledge');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    try {
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+    } catch (dirError) {
+      console.error('Error creating uploads directory:', dirError);
+      return res.status(500).json({ error: 'Failed to create uploads directory' });
     }
 
     // Generate unique filename
@@ -51,7 +56,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const filepath = path.join(uploadsDir, filename);
 
     // Move file to final location
-    fs.renameSync(file.filepath, filepath);
+    try {
+      fs.renameSync(file.filepath, filepath);
+    } catch (moveError) {
+      console.error('Error moving file:', moveError);
+      return res.status(500).json({ error: 'Failed to save uploaded file' });
+    }
 
     // Parse document content
     let content = '';
@@ -67,10 +77,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Save to database
+    const id = uuidv4();
     const result = await db.run(`
-      INSERT INTO company_knowledge (category, filename, original_filename, content, metadata, file_type)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO company_knowledge (id, category, filename, original_filename, content, metadata, file_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
+      id,
       category,
       filename,
       file.originalFilename || 'unknown',
@@ -81,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({ 
       success: true, 
-      id: result.lastID,
+      id: id,
       filename: filename,
       original_filename: file.originalFilename
     });

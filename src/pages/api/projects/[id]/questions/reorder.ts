@@ -20,8 +20,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const question of questions) {
       await db.run(
-        'UPDATE rfi_questions SET order_index = ? WHERE id = ? AND project_id = ?',
-        [question.order_index, question.id, id]
+        'UPDATE rfi_questions SET position = ?, order_index = ? WHERE id = ? AND project_id = ?',
+        [question.order_index, question.order_index, question.id, id]
       );
     }
 

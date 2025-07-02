@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     case 'GET':
       try {
         const documents = await db.all(
-          'SELECT * FROM documents WHERE project_id = ? ORDER BY created_at DESC',
+          'SELECT * FROM documents WHERE project_id = ? ORDER BY uploaded_at DESC',
           [id]
         );
 
@@ -47,10 +47,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return {
             id: doc.id,
             filename: doc.filename,
-            file_type: doc.file_type,
+            file_type: doc.file_type || doc.mimetype,
             extractedInfo,
             metadata,
-            created_at: doc.created_at
+            created_at: doc.uploaded_at || doc.created_at
           };
         });
 

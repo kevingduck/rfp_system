@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { openDb } from '@/lib/db';
 import { AIService } from '@/lib/ai-service';
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -188,11 +189,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Save draft to database
-    await db.run(
-      `INSERT OR REPLACE INTO drafts (project_id, content, metadata, created_at)
-       VALUES (?, ?, ?, datetime('now'))`,
-      [id, JSON.stringify(draftData.sections), JSON.stringify(draftData.metadata)]
+    // First check if a draft exists for this project
+    const existingDraft = await db.get(
+      'SELECT id FROM drafts WHERE project_id = ?',
+      [id]
     );
+    
+    if (existingDraft) {
+      // Update existing draft
+      await db.run(
+        `UPDATE drafts 
+         SET content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE project_id = ?`,
+        [JSON.stringify(draftData.sections), JSON.stringify(draftData.metadata), id]
+      );
+    } else {
+      // Create new draft
+      const draftId = uuidv4();
+      await db.run(
+        `INSERT INTO drafts (id, project_id, content, metadata)
+         VALUES (?, ?, ?, ?)`,
+        [draftId, id, JSON.stringify(draftData.sections), JSON.stringify(draftData.metadata)]
+      );
+    }
 
     sendProgress('Draft generated successfully!', 100);
 

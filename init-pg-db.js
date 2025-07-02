@@ -51,12 +51,15 @@ async function initializeDatabase() {
         project_id TEXT NOT NULL,
         filename TEXT NOT NULL,
         filepath TEXT NOT NULL,
+        file_path TEXT, -- alias for compatibility
+        file_type TEXT,
         mimetype TEXT,
         size INTEGER,
         content TEXT,
         metadata TEXT,
         summary_cache TEXT,
         summary_generated_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
@@ -101,9 +104,11 @@ async function initializeDatabase() {
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
         question_text TEXT NOT NULL,
+        question_type TEXT DEFAULT 'text',
         category TEXT,
         answer TEXT,
         position INTEGER DEFAULT 0,
+        order_index INTEGER DEFAULT 0, -- alias for compatibility
         required BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -114,6 +119,8 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS company_knowledge (
         id TEXT PRIMARY KEY,
         filename TEXT NOT NULL,
+        original_filename TEXT,
+        file_type TEXT,
         category TEXT NOT NULL,
         content TEXT,
         metadata TEXT,
@@ -180,6 +187,19 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
     await client.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS type TEXT`);
+    
+    // Fix documents table
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_path TEXT`);
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_type TEXT`);
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    
+    // Fix rfi_questions table
+    await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'text'`);
+    await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0`);
+    
+    // Fix company_knowledge table
+    await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS original_filename TEXT`);
+    await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS file_type TEXT`);
     
     console.log('✓ PostgreSQL database initialized successfully');
   } catch (error) {

@@ -28,9 +28,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await db.run('DELETE FROM company_knowledge WHERE id = ?', [id]);
 
       // Delete physical file
-      const filepath = path.join(process.cwd(), 'uploads', 'knowledge', file.filename);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
+      try {
+        const filepath = path.join(process.cwd(), 'uploads', 'knowledge', file.filename);
+        if (fs.existsSync(filepath)) {
+          fs.unlinkSync(filepath);
+        }
+      } catch (fsError) {
+        console.error('Error deleting physical file:', fsError);
+        // Continue anyway - database record is more important
       }
 
       res.status(200).json({ success: true });

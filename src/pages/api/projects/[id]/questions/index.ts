@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     case 'GET':
       try {
         const questions = await db.all(
-          'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY order_index, category',
+          'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY position, category',
           [id]
         );
         res.status(200).json(questions);
@@ -33,10 +33,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const questionId = uuidv4();
+        const position = order_index || 0;
         await db.run(
-          `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, order_index, category)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [questionId, id, question_text, question_type, required ? 1 : 0, order_index || 0, category]
+          `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, position, order_index, category)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [questionId, id, question_text, question_type, required ? 1 : 0, position, position, category]
         );
 
         const question = await db.get(

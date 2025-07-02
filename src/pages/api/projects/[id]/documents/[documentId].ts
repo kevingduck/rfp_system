@@ -32,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Try to delete the file from disk
         try {
-          await fs.unlink(document.file_path);
+          await fs.unlink(document.filepath || document.file_path);
         } catch (error) {
           // File might not exist, that's okay
           console.error('Failed to delete file from disk:', error);

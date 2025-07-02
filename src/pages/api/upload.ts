@@ -54,14 +54,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const db = await openDb();
     await db.run(
-      `INSERT INTO documents (id, project_id, filename, file_type, file_path, content, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO documents (id, project_id, filename, file_type, filepath, file_path, mimetype, size, content, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         documentId,
         projectId,
         uploadedFile.originalFilename,
         parsedDoc.metadata.fileType,
         uploadedFile.filepath,
+        uploadedFile.filepath, // duplicate for compatibility
+        uploadedFile.mimetype,
+        uploadedFile.size,
         JSON.stringify({ text: parsedDoc.text, ...keyInfo }),
         JSON.stringify(parsedDoc.metadata)
       ]

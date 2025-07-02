@@ -69,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       await db.run(
         `UPDATE drafts 
-         SET content = ?, metadata = ?, updated_at = datetime('now')
+         SET content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [JSON.stringify(sections), JSON.stringify(metadata), draft.id]
       );
