@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -8,15 +8,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project ID' });
   }
 
-  const db = await openDb();
-
   switch (req.method) {
     case 'GET':
       try {
-        const documents = await db.all(
-          'SELECT * FROM documents WHERE project_id = ? ORDER BY uploaded_at DESC',
+        const result = await query(
+          'SELECT * FROM documents WHERE project_id = $1 ORDER BY uploaded_at DESC',
           [id]
         );
+        const documents = result.rows;
 
         // Parse the content and metadata for each document
         const documentsWithParsedData = documents.map(doc => {

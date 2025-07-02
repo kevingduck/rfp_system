@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import { AIService } from '@/lib/ai-service';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -14,23 +14,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const db = await openDb();
-    
     // Get project info
-    const project = await db.get(
-      'SELECT * FROM projects WHERE id = ?',
+    const projectResult = await query(
+      'SELECT * FROM projects WHERE id = $1',
       [id]
     );
+    const project = projectResult.rows[0];
     
     if (!project || project.project_type !== 'RFI') {
       return res.status(400).json({ error: 'Invalid RFI project' });
     }
     
     // Get uploaded documents
-    const documents = await db.all(
-      'SELECT * FROM documents WHERE project_id = ?',
+    const documentsResult = await query(
+      'SELECT * FROM documents WHERE project_id = $1',
       [id]
     );
+    const documents = documentsResult.rows;
     
     // Generate smart questions using AI
     const aiService = new AIService();
@@ -43,9 +43,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Add questions to database
     for (const question of smartQuestions) {
       const questionId = require('uuid').v4();
-      await db.run(
+      await query(
         `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, order_index, category)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           questionId,
           id,

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import { AIService } from '@/lib/ai-service';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -33,14 +33,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   try {
-    const db = await openDb();
-    
     sendProgress('Collecting resources...', 10);
     
-    const project = await db.get(
-      'SELECT * FROM projects WHERE id = ?',
+    const projectResult = await query(
+      'SELECT * FROM projects WHERE id = $1',
       [id]
     );
+    const project = projectResult.rows[0];
 
     if (!project) {
       res.write(`data: ${JSON.stringify({ error: 'Project not found' })}\n\n`);
@@ -50,17 +49,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     sendProgress('Collecting documents and sources...', 20);
 
-    const [documents, webSources, organization, companyInfo] = await Promise.all([
-      db.all('SELECT *, summary_cache, summary_generated_at FROM documents WHERE project_id = ?', [id]),
-      db.all('SELECT *, summary_cache, summary_generated_at FROM web_sources WHERE project_id = ?', [id]),
-      db.get('SELECT * FROM organizations WHERE id = ?', [project.organization_id]),
-      db.get('SELECT * FROM company_info LIMIT 1')
+    const [documentsResult, webSourcesResult, organizationResult, companyInfoResult] = await Promise.all([
+      query('SELECT *, summary_cache, summary_generated_at FROM documents WHERE project_id = $1', [id]),
+      query('SELECT *, summary_cache, summary_generated_at FROM web_sources WHERE project_id = $1', [id]),
+      query('SELECT * FROM organizations WHERE id = $1', [project.organization_id]),
+      query('SELECT * FROM company_info LIMIT 1')
     ]);
+    const documents = documentsResult.rows;
+    const webSources = webSourcesResult.rows;
+    const organization = organizationResult.rows[0];
+    const companyInfo = companyInfoResult.rows[0];
 
     sendProgress('Analyzing knowledge base...', 30);
 
     // Fetch knowledge base with cached summaries
-    const knowledgeFiles = await db.all('SELECT *, summary_cache, summary_generated_at FROM company_knowledge');
+    const knowledgeFilesResult = await query('SELECT *, summary_cache, summary_generated_at FROM company_knowledge');
+    const knowledgeFiles = knowledgeFilesResult.rows;
     console.log(`[Generate Draft] Found ${knowledgeFiles.length} knowledge base files`);
     
     const knowledgeBase: any = {};
@@ -92,10 +96,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate content based on project type
     let content;
     if (project.project_type === 'RFI') {
-      const rfiQuestions = await db.all(
-        'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY category, order_index',
+      const rfiQuestionsResult = await query(
+        'SELECT * FROM rfi_questions WHERE project_id = $1 ORDER BY category, order_index',
         [id]
       );
+      const rfiQuestions = rfiQuestionsResult.rows;
 
       sendProgress('Summarizing documents...', 50);
       
@@ -190,25 +195,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Save draft to database
     // First check if a draft exists for this project
-    const existingDraft = await db.get(
-      'SELECT id FROM drafts WHERE project_id = ?',
+    const existingDraftResult = await query(
+      'SELECT id FROM drafts WHERE project_id = $1',
       [id]
     );
+    const existingDraft = existingDraftResult.rows[0];
     
     if (existingDraft) {
       // Update existing draft
-      await db.run(
+      await query(
         `UPDATE drafts 
-         SET content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE project_id = ?`,
+         SET content = $1, metadata = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE project_id = $3`,
         [JSON.stringify(draftData.sections), JSON.stringify(draftData.metadata), id]
       );
     } else {
       // Create new draft
       const draftId = uuidv4();
-      await db.run(
+      await query(
         `INSERT INTO drafts (id, project_id, content, metadata)
-         VALUES (?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4)`,
         [draftId, id, JSON.stringify(draftData.sections), JSON.stringify(draftData.metadata)]
       );
     }

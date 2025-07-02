@@ -3,7 +3,7 @@ import formidable from 'formidable';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import { parseDocument, extractKeyInformation } from '@/lib/document-parser';
 
 export const config = {
@@ -52,10 +52,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsedDoc = await parseDocument(uploadedFile.filepath);
     const keyInfo = extractKeyInformation(parsedDoc.text);
 
-    const db = await openDb();
-    await db.run(
+    await query(
       `INSERT INTO documents (id, project_id, filename, file_type, filepath, file_path, mimetype, size, content, metadata)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         documentId,
         projectId,

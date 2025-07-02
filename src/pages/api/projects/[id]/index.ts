@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -8,18 +8,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project ID' });
   }
 
-  const db = await openDb();
-
   switch (req.method) {
     case 'GET':
       try {
-        const project = await db.get(
+        const result = await query(
           `SELECT p.*, o.name as organization_name 
            FROM projects p 
            LEFT JOIN organizations o ON p.organization_id = o.id 
-           WHERE p.id = ?`,
+           WHERE p.id = $1`,
           [id]
         );
+        const project = result.rows[0];
 
         if (!project) {
           return res.status(404).json({ error: 'Project not found' });

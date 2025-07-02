@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 import { scrapeWebPage } from '@/lib/web-scraper';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,10 +18,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const scrapedContent = await scrapeWebPage(url);
     const sourceId = uuidv4();
 
-    const db = await openDb();
-    await db.run(
+    await query(
       `INSERT INTO web_sources (id, project_id, url, title, content, scraped_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         sourceId,
         projectId,

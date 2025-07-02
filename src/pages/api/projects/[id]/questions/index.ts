@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -9,16 +9,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid project ID' });
   }
 
-  const db = await openDb();
-
   switch (req.method) {
     case 'GET':
       try {
-        const questions = await db.all(
-          'SELECT * FROM rfi_questions WHERE project_id = ? ORDER BY position, category',
+        const result = await query(
+          'SELECT * FROM rfi_questions WHERE project_id = $1 ORDER BY position, category',
           [id]
         );
-        res.status(200).json(questions);
+        res.status(200).json(result.rows);
       } catch (error) {
         res.status(500).json({ error: 'Failed to fetch questions' });
       }
@@ -34,18 +32,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const questionId = uuidv4();
         const position = order_index || 0;
-        await db.run(
+        await query(
           `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, position, order_index, category)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [questionId, id, question_text, question_type, required ? 1 : 0, position, position, category]
         );
 
-        const question = await db.get(
-          'SELECT * FROM rfi_questions WHERE id = ?',
+        const questionResult = await query(
+          'SELECT * FROM rfi_questions WHERE id = $1',
           [questionId]
         );
 
-        res.status(201).json(question);
+        res.status(201).json(questionResult.rows[0]);
       } catch (error) {
         res.status(500).json({ error: 'Failed to create question' });
       }

@@ -1,13 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { openDb } from '@/lib/db';
+import { query } from '@/lib/pg-db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const db = await openDb();
-
   if (req.method === 'GET') {
     try {
-      const companyInfo = await db.get('SELECT * FROM company_info LIMIT 1');
-      res.json(companyInfo || null);
+      const result = await query('SELECT * FROM company_info LIMIT 1');
+      res.json(result.rows[0] || null);
     } catch (error) {
       console.error('Failed to fetch company info:', error);
       res.status(500).json({ error: 'Failed to fetch company info' });
@@ -30,26 +28,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } = req.body;
 
       // Check if company info exists
-      const existing = await db.get('SELECT id FROM company_info LIMIT 1');
+      const existingResult = await query('SELECT id FROM company_info LIMIT 1');
+      const existing = existingResult.rows[0];
 
       if (existing) {
         // Update existing record
-        await db.run(
+        await query(
           `UPDATE company_info SET 
-            company_name = ?,
-            description = ?,
-            services = ?,
-            capabilities = ?,
-            differentiators = ?,
-            experience = ?,
-            certifications = ?,
-            team_size = ?,
-            website = ?,
-            email = ?,
-            phone = ?,
-            address = ?,
+            company_name = $1,
+            description = $2,
+            services = $3,
+            capabilities = $4,
+            differentiators = $5,
+            experience = $6,
+            certifications = $7,
+            team_size = $8,
+            website = $9,
+            email = $10,
+            phone = $11,
+            address = $12,
             updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?`,
+          WHERE id = $13`,
           [company_name,
           description,
           services,
@@ -67,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         // Create new record
         const id = Math.random().toString(36).substr(2, 9);
-        await db.run(
+        await query(
           `INSERT INTO company_info (
             id,
             company_name,
@@ -82,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             email,
             phone,
             address
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [id,
           company_name,
           description,
