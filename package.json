@@ -4,14 +4,13 @@
   "description": "Universal RFP Generation System for VoIP and other services",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "sh build.sh",
+    "start": "sh start.sh",
+    "lint": "next lint",
+    "setup": "node fix-all-tables.js && node create-knowledge-table.js && node create-drafts-table.js && node add-summary-cache.js"
   },
   "dependencies": {
-    "next": "14.1.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "@anthropic-ai/sdk": "^0.20.0",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
@@ -26,17 +25,20 @@
     "clsx": "^2.1.0",
     "docx": "^8.5.0",
     "formidable": "^3.5.1",
+    "github": "^14.0.0",
     "lucide-react": "^0.303.0",
     "mammoth": "^1.6.0",
+    "next": "14.1.0",
     "pdf-parse": "^1.1.1",
     "puppeteer": "^21.7.0",
-    "xlsx": "^0.18.5",
-    "@anthropic-ai/sdk": "^0.20.0",
-    "sqlite3": "^5.1.7",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/formidable": "^3.4.5",
@@ -50,5 +52,8 @@
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.0",
     "typescript": "5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
