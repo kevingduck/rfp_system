@@ -37,8 +37,10 @@ async function initializeDatabase() {
         name TEXT NOT NULL,
         project_type TEXT CHECK(project_type IN ('RFI', 'RFP')) NOT NULL DEFAULT 'RFP',
         organization_id TEXT,
+        description TEXT,
         status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (organization_id) REFERENCES organizations(id)
       )
     `);
@@ -172,6 +174,13 @@ async function initializeDatabase() {
       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     `);
 
+    console.log('Applying schema fixes...');
+    
+    // Add missing columns if tables already exist
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    await client.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS type TEXT`);
+    
     console.log('✓ PostgreSQL database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
