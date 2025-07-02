@@ -1,2 +1,2 @@
 // Re-export PostgreSQL implementation
-export { openDb, initializeDatabase as initDb } from './pg-db';
+export { openDb } from './pg-db';

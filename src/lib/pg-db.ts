@@ -12,6 +12,14 @@ export const pool = new Pool({
 
 // Helper functions to match SQLite API
 export async function openDb() {
+  try {
+    // Test the connection
+    await pool.query('SELECT 1');
+  } catch (error) {
+    console.error('Database connection error:', error);
+    throw new Error('Failed to connect to database');
+  }
+  
   return {
     get: async (query: string, params?: any[]): Promise<any> => {
       // Handle parameter placeholders - convert ? to $1, $2, etc.

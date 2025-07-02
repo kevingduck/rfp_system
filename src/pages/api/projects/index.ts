@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
-import { openDb, initDb } from '@/lib/db';
+import { openDb } from '@/lib/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  await initDb();
   const db = await openDb();
 
   switch (req.method) {
@@ -57,7 +56,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         res.status(201).json(project);
       } catch (error) {
-        res.status(500).json({ error: 'Failed to create project' });
+        console.error('Error creating project:', error);
+        res.status(500).json({ error: 'Failed to create project', details: error instanceof Error ? error.message : 'Unknown error' });
       }
       break;
 
