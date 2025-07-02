@@ -1,61 +1,57 @@
-# Deploying RFP System to Render
+# Render Deployment Configuration
 
-This project is configured for easy deployment to Render using their Blueprint feature.
+## Required Environment Variables
 
-## Quick Deploy with Render Blueprint
+You must set these environment variables in your Render dashboard:
 
-1. Push your code to GitHub (if not already done)
-2. Go to [Render Dashboard](https://dashboard.render.com)
-3. Click "New +" → "Blueprint"
-4. Connect your GitHub repo (`rfp_system`)
-5. Render will automatically detect the `render.yaml` file
-6. Click "Apply" to create the service
+### 1. Database
+```
+DATABASE_URL=your_postgresql_connection_string
+```
+- Get this from your database provider (e.g., Neon, Supabase, or Render's PostgreSQL)
+- Format: `postgresql://user:password@host:port/database?sslmode=require`
 
-## Environment Variables
+### 2. AI Services
+```
+ANTHROPIC_API_KEY=your_anthropic_api_key
+GROQ_API_KEY=your_groq_api_key
+```
+- Get ANTHROPIC_API_KEY from https://console.anthropic.com/
+- Get GROQ_API_KEY from https://console.groq.com/
 
-After deployment, you need to set the `ANTHROPIC_API_KEY` in the Render dashboard:
+## Setting Environment Variables on Render
 
-1. Go to your service in Render
-2. Click "Environment" in the left sidebar
-3. Add your `ANTHROPIC_API_KEY` value
-4. The service will automatically restart
+1. Go to your Render dashboard
+2. Select your web service
+3. Click on "Environment" in the left sidebar
+4. Add each environment variable:
+   - Click "Add Environment Variable"
+   - Enter the key (e.g., `DATABASE_URL`)
+   - Enter the value
+   - Click "Save"
 
-## What's Included
+## Database Setup
 
-- **Persistent Disk**: 1GB for database and uploads
-- **Health Check**: Endpoint at `/api/health`
-- **Auto-build**: Runs database migrations and builds Next.js
-- **Node 18+**: Uses latest Node.js runtime
+After deploying, the database will be initialized automatically on the first build.
 
-## File Structure for Render
-
-- `render.yaml` - Render Blueprint configuration
-- `build.sh` - Custom build script that:
-  - Creates necessary directories
-  - Runs database migrations
-  - Builds Next.js app
-- `start.sh` - Custom start script
-- `.env.example` - Example environment variables
-
-## Database Persistence
-
-The SQLite database is stored on a persistent disk at `/opt/render/project/src/rfp_database.db`. This ensures your data persists across deployments.
+If you need to manually initialize the database:
+```bash
+node init-pg-db.js
+```
 
 ## Troubleshooting
 
-If you encounter issues:
+### 500 Errors on Generation
+- Check that all environment variables are set correctly
+- Verify API keys are valid and have sufficient credits
+- Check Render logs for specific error messages
 
-1. Check the Render logs for build/runtime errors
-2. Ensure `ANTHROPIC_API_KEY` is set correctly
-3. Verify all migration scripts run successfully
-4. Check that the persistent disk is mounted correctly
+### Database Connection Issues
+- Ensure DATABASE_URL is correctly formatted
+- Verify SSL mode is set to `require` for most providers
+- Check that your database is accessible from Render's servers
 
-## Local Development
-
-To match the Render environment locally:
-
-```bash
-npm install
-npm run setup  # Run database migrations
-npm run dev     # Start development server
-```
+### Build Failures
+- Ensure all dependencies are in package.json
+- Check Node.js version compatibility (requires 18+)
+- Review build logs for specific errors

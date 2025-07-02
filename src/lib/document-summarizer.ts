@@ -2,11 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import Groq from 'groq-sdk';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY!
+  apiKey: process.env.GROQ_API_KEY || ''
 });
 
 export interface DocumentSummary {

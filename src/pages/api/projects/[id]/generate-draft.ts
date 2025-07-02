@@ -21,6 +21,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering
   
+  // Validate environment variables
+  if (!process.env.ANTHROPIC_API_KEY || !process.env.GROQ_API_KEY) {
+    res.write(`data: ${JSON.stringify({ error: 'API configuration error: Missing required API keys' })}\n\n`);
+    res.end();
+    return;
+  }
+  
   // Send initial connection message
   res.write(':ok\n\n');
 
