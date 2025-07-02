@@ -4,8 +4,8 @@
   "description": "Universal RFP Generation System for VoIP and other services",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "node create-knowledge-table.js && node create-drafts-table.js && node add-summary-cache.js && node fix-all-tables.js && node fix-company-info-table.js && next build",
+    "start": "next start -p $PORT",
     "lint": "next lint"
   },
   "dependencies": {
