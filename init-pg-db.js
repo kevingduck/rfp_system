@@ -1,8 +1,9 @@
 const { Pool } = require('pg');
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
+// Always use the full connection string directly
+const connectionString = 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
 
-console.log('Using database URL:', connectionString.replace(/:[^:@]+@/, ':****@')); // Log URL with password hidden
+console.log('Connecting to Neon database...');
 
 const pool = new Pool({
   connectionString,

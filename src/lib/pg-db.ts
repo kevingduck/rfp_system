@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 
-// Use Neon connection string from environment or fallback
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
+// Always use the Neon connection string directly
+const connectionString = 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
 
 export const pool = new Pool({
   connectionString,
