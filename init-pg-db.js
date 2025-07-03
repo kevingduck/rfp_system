@@ -41,6 +41,8 @@ async function initializeDatabase() {
         status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        archived_at TIMESTAMP DEFAULT NULL,
+        archived_by TEXT DEFAULT NULL,
         FOREIGN KEY (organization_id) REFERENCES organizations(id)
       )
     `);
@@ -137,8 +139,36 @@ async function initializeDatabase() {
         content TEXT NOT NULL,
         format TEXT DEFAULT 'markdown',
         metadata TEXT,
+        current_version INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS draft_revisions (
+        id TEXT PRIMARY KEY,
+        draft_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        version_number INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        metadata TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by TEXT DEFAULT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_activity (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        action_details TEXT,
+        performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        performed_by TEXT DEFAULT NULL,
+        metadata TEXT,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
     `);
@@ -152,6 +182,11 @@ async function initializeDatabase() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_rfi_questions_position ON rfi_questions(project_id, position)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_company_knowledge_category ON company_knowledge(category)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_drafts_project ON drafts(project_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_projects_archived_at ON projects(archived_at)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_draft_revisions_project ON draft_revisions(project_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_draft_revisions_draft ON draft_revisions(draft_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_draft_revisions_version ON draft_revisions(project_id, version_number DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_project_activity_project ON project_activity(project_id, performed_at DESC)`);
 
     console.log('Creating triggers...');
     
@@ -200,6 +235,11 @@ async function initializeDatabase() {
     // Fix company_knowledge table
     await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS original_filename TEXT`);
     await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS file_type TEXT`);
+    
+    // Add new columns for archiving and versioning
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP DEFAULT NULL`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_by TEXT DEFAULT NULL`);
+    await client.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1`);
     
     console.log('✓ PostgreSQL database initialized successfully');
   } catch (error) {

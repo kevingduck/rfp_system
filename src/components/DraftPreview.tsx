@@ -10,7 +10,9 @@ import {
   Save, 
   X,
   Quote,
-  CheckCircle
+  CheckCircle,
+  History,
+  RotateCcw
 } from 'lucide-react';
 
 interface DraftSection {
@@ -33,6 +35,17 @@ interface DraftData {
   };
 }
 
+interface DraftRevision {
+  id: string;
+  draftId: string;
+  projectId: string;
+  versionNumber: number;
+  content: Record<string, string>;
+  metadata: any;
+  createdAt: string;
+  createdBy: string | null;
+}
+
 interface DraftPreviewProps {
   draft: DraftData;
   onClose: () => void;
@@ -44,6 +57,9 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [revisions, setRevisions] = useState<DraftRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
 
   // Initialize edited content with original content
   useEffect(() => {
@@ -53,6 +69,42 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
     });
     setEditedContent(initialContent);
   }, [draft.sections]);
+
+  const fetchRevisions = async () => {
+    setLoadingRevisions(true);
+    try {
+      const response = await fetch(`/api/projects/${draft.projectId}/draft/revisions`);
+      if (response.ok) {
+        const data = await response.json();
+        setRevisions(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch revisions:', error);
+    } finally {
+      setLoadingRevisions(false);
+    }
+  };
+
+  const restoreRevision = async (revisionId: string) => {
+    if (!confirm('Are you sure you want to restore this version? Current changes will be saved as a new revision.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/projects/${draft.projectId}/draft/revisions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revisionId }),
+      });
+      
+      if (response.ok) {
+        // Reload the page to get the restored content
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Failed to restore revision:', error);
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -136,6 +188,19 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
                       Show Citations
                     </>
                   )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowRevisions(!showRevisions);
+                    if (!showRevisions && revisions.length === 0) {
+                      fetchRevisions();
+                    }
+                  }}
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Version History
                 </Button>
                 <Button
                   variant="outline"
@@ -333,6 +398,53 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
                     removed for the final client version.
                   </p>
                 </div>
+
+                {showRevisions && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm flex items-center">
+                        <History className="h-4 w-4 mr-2" />
+                        Version History
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingRevisions ? (
+                        <p className="text-sm text-gray-500">Loading revisions...</p>
+                      ) : revisions.length === 0 ? (
+                        <p className="text-sm text-gray-500">No previous versions available</p>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {revisions.map((revision) => (
+                            <div
+                              key={revision.id}
+                              className="p-2 border rounded-md hover:bg-gray-50"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="text-xs">
+                                  <p className="font-semibold">Version {revision.versionNumber}</p>
+                                  <p className="text-gray-500">
+                                    {new Date(revision.createdAt).toLocaleString()}
+                                  </p>
+                                  {revision.createdBy && (
+                                    <p className="text-gray-500">By: {revision.createdBy}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => restoreRevision(revision.id)}
+                                  title="Restore this version"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </CardContent>

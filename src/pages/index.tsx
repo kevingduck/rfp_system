@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Plus, Upload, Globe, Download, Settings } from 'lucide-react';
+import { FileText, Plus, Upload, Globe, Download, Settings, Archive, Trash2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
 interface Project {
@@ -13,6 +13,7 @@ interface Project {
   status: string;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 }
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
   const [newProjectName, setNewProjectName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
   const [projectType, setProjectType] = useState<'RFI' | 'RFP'>('RFI');
+  const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'archived'>('active');
 
   useEffect(() => {
     fetchProjects();
@@ -69,6 +71,65 @@ export default function Home() {
     }
   };
 
+  const archiveProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to archive this project?')) return;
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive' }),
+      });
+
+      if (res.ok) {
+        fetchProjects();
+      }
+    } catch (error) {
+      console.error('Failed to archive project:', error);
+    }
+  };
+
+  const restoreProject = async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+
+      if (res.ok) {
+        fetchProjects();
+      }
+    } catch (error) {
+      console.error('Failed to restore project:', error);
+    }
+  };
+
+  const deleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        fetchProjects();
+      }
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    }
+  };
+
+  // Filter projects based on the selected filter
+  const filteredProjects = projects.filter(project => {
+    if (projectFilter === 'all') return true;
+    if (projectFilter === 'archived') return project.archived_at !== null;
+    if (projectFilter === 'active') return project.archived_at === null;
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-8">
@@ -85,13 +146,43 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="mb-8">
-          {!isCreating ? (
-            <Button onClick={() => setIsCreating(true)} size="lg">
-              <Plus className="mr-2 h-5 w-5" />
-              New Project
-            </Button>
-          ) : (
+        <div className="mb-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              {!isCreating ? (
+                <Button onClick={() => setIsCreating(true)} size="lg">
+                  <Plus className="mr-2 h-5 w-5" />
+                  New Project
+                </Button>
+              ) : null}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant={projectFilter === 'active' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setProjectFilter('active')}
+              >
+                Active
+              </Button>
+              <Button
+                variant={projectFilter === 'archived' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setProjectFilter('archived')}
+              >
+                Archived
+              </Button>
+              <Button
+                variant={projectFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setProjectFilter('all')}
+              >
+                All
+              </Button>
+            </div>
+          </div>
+          
+          {isCreating ? (
             <Card className="max-w-md">
               <CardHeader>
                 <CardTitle>Create New Project</CardTitle>
@@ -150,14 +241,14 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <Link href={`/project/${project.id}`} key={project.id}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
+          {filteredProjects.map((project) => (
+            <Card key={project.id} className={`hover:shadow-lg transition-shadow ${project.archived_at ? 'opacity-60' : ''}`}>
+              <Link href={`/project/${project.id}`}>
+                <CardHeader className="cursor-pointer">
                   <CardTitle className="flex items-center">
                     <FileText className="mr-2 h-5 w-5" />
                     <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded mr-2">{project.project_type}</span>
@@ -167,14 +258,58 @@ export default function Home() {
                     <CardDescription>{project.organization_name}</CardDescription>
                   )}
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-600">
-                    <p>Status: <span className="font-medium capitalize">{project.status}</span></p>
-                    <p>Created: {new Date(project.created_at).toLocaleDateString()}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              <CardContent>
+                <div className="text-sm text-gray-600 mb-4">
+                  <p>Status: <span className="font-medium capitalize">{project.status}</span></p>
+                  <p>Created: {new Date(project.created_at).toLocaleDateString()}</p>
+                  {project.archived_at && (
+                    <p className="text-orange-600">Archived: {new Date(project.archived_at).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {project.archived_at ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          restoreProject(project.id);
+                        }}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" />
+                        Restore
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          deleteProject(project.id);
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Delete
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        archiveProject(project.id);
+                      }}
+                    >
+                      <Archive className="mr-1 h-3 w-3" />
+                      Archive
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { query } from '@/lib/pg-db';
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
@@ -56,9 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { sections, metadata } = req.body;
 
-      // Update the most recent draft
+      // Get the most recent draft with current version
       const draftResult = await query(
-        'SELECT id FROM drafts WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
+        'SELECT id, current_version FROM drafts WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
         [id]
       );
       const draft = draftResult.rows[0];
@@ -67,14 +68,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: 'No draft found to update' });
       }
 
+      // Get current version and increment
+      const currentVersion = draft.current_version || 1;
+      const newVersion = currentVersion + 1;
+
+      // Create a revision for the new content
       await query(
-        `UPDATE drafts 
-         SET content = $1, metadata = $2, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3`,
-        [JSON.stringify(sections), JSON.stringify(metadata), draft.id]
+        `INSERT INTO draft_revisions (id, draft_id, project_id, version_number, content, metadata, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          uuidv4(),
+          draft.id,
+          id,
+          newVersion,
+          JSON.stringify(sections),
+          JSON.stringify(metadata),
+          null // No user system yet
+        ]
       );
 
-      res.json({ success: true });
+      // Update the draft
+      await query(
+        `UPDATE drafts 
+         SET content = $1, metadata = $2, current_version = $3, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4`,
+        [JSON.stringify(sections), JSON.stringify(metadata), newVersion, draft.id]
+      );
+
+      // Log the activity
+      await query(
+        `INSERT INTO project_activity (id, project_id, action_type, action_details, metadata)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          uuidv4(),
+          id,
+          'draft_updated',
+          `Draft updated to version ${newVersion}`,
+          JSON.stringify({ version: newVersion })
+        ]
+      );
+
+      res.json({ success: true, version: newVersion });
     } catch (error) {
       console.error('Failed to update draft:', error);
       res.status(500).json({ error: 'Failed to update draft' });
