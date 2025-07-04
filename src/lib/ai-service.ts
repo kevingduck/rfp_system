@@ -1158,13 +1158,7 @@ Make questions specific to the context and avoid generic questions.`;
     console.log(`[AIService] Generating answers for ${params.questions.length} questions from ${params.documents.length} documents`);
     
     try {
-      // Build document context with size optimization
-      const MAX_CONTENT_PER_DOC = 8000; // Reduced to prevent token limits
-      const MAX_TOTAL_CONTEXT = 30000; // Overall limit
-      
-      let totalLength = 0;
-      const documentContextParts: string[] = [];
-      
+      // Build document context - using summaries where available
       // Prioritize documents: Company Info first, then RFI/RFP, then others
       const sortedDocs = params.documents.sort((a, b) => {
         if (a.metadata?.type === 'company_info') return -1;
@@ -1174,11 +1168,11 @@ Make questions specific to the context and avoid generic questions.`;
         return 0;
       });
       
-      for (const doc of sortedDocs) {
+      const documentContext = sortedDocs.map(doc => {
         let content = doc.content;
         
-        // Parse content if it's JSON
-        if (typeof content === 'string' && content.startsWith('{')) {
+        // Parse content if it's JSON (shouldn't happen with summaries, but just in case)
+        if (typeof content === 'string' && content.startsWith('{') && !content.includes('Summary:')) {
           try {
             const parsed = JSON.parse(content);
             content = parsed.text || JSON.stringify(parsed, null, 2);
@@ -1187,32 +1181,10 @@ Make questions specific to the context and avoid generic questions.`;
           }
         }
         
-        // Skip if we've already hit total limit
-        if (totalLength >= MAX_TOTAL_CONTEXT) {
-          console.log(`[AIService] Skipping ${doc.filename} - total context limit reached`);
-          continue;
-        }
-        
-        // Limit individual document content
-        let truncated = false;
-        if (content.length > MAX_CONTENT_PER_DOC) {
-          content = content.substring(0, MAX_CONTENT_PER_DOC);
-          truncated = true;
-        }
-        
-        // Check if adding this would exceed total limit
-        if (totalLength + content.length > MAX_TOTAL_CONTEXT) {
-          content = content.substring(0, MAX_TOTAL_CONTEXT - totalLength);
-          truncated = true;
-        }
-        
-        const docContext = `=== ${doc.filename} ===\n${content}${truncated ? '\n... [truncated for length]' : ''}\n`;
-        documentContextParts.push(docContext);
-        totalLength += docContext.length;
-      }
+        return `=== ${doc.filename} ===\n${content}\n`;
+      }).join('\n\n');
       
-      const documentContext = documentContextParts.join('\n\n');
-      console.log(`[AIService] Document context built: ${documentContextParts.length} docs, ${totalLength} chars total`);
+      console.log(`[AIService] Document context built: ${sortedDocs.length} docs using summaries where available`);
       
       // Build questions list
       const questionsList = params.questions.map((q, idx) => 
@@ -1220,15 +1192,17 @@ Make questions specific to the context and avoid generic questions.`;
       ).join('\n');
       
       const prompt = `You are analyzing company documents to answer RFI questions as a vendor responding to a client's request. 
-Based on the following documents, provide comprehensive, accurate answers to each question.
+The documents include AI-generated summaries and key extracted information from larger documents.
 
 IMPORTANT: 
 - The "Company Information" document contains critical details about our company that should be used prominently
 - Reference specific company capabilities, certifications, and differentiators when relevant
 - Use concrete examples from past projects when available
+- Documents may be provided as summaries with key points and extracted data
+- Focus on the most relevant information from each document
 - If documents don't contain relevant information for a question, clearly state what information is missing
 
-SUPPORTING DOCUMENTS:
+SUPPORTING DOCUMENTS (includes summaries where applicable):
 ${documentContext}
 
 QUESTIONS TO ANSWER:

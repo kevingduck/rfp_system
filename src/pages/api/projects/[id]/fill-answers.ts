@@ -72,15 +72,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }, null, 2),
         metadata: { type: 'company_info' }
       }] : []),
-      ...fullDocuments.map(doc => ({
-        filename: doc.filename,
-        content: doc.extracted_text || doc.content || '',
-        metadata: doc.metadata
-      })),
-      ...companyKnowledge.map(kb => ({
-        filename: `${kb.filename} (Company Knowledge: ${kb.category})`,
-        content: kb.content || '',
-        metadata: kb.metadata
+      ...fullDocuments.map(doc => {
+        // Use summary if available, otherwise use content
+        let docContent = '';
+        if (doc.summary_cache) {
+          try {
+            const summary = JSON.parse(doc.summary_cache);
+            docContent = `Summary: ${summary.fullSummary}\n\nKey Points:\n${summary.keyPoints?.join('\n- ') || 'N/A'}`;
+            if (summary.extractedData) {
+              docContent += '\n\nExtracted Information:\n' + Object.entries(summary.extractedData)
+                .filter(([_, value]) => value)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n');
+            }
+          } catch (e) {
+            console.log(`[Fill Answers] Failed to parse summary for ${doc.filename}, using raw content`);
+            docContent = doc.extracted_text || doc.content || '';
+          }
+        } else {
+          docContent = doc.extracted_text || doc.content || '';
+        }
+        
+        return {
+          filename: doc.filename,
+          content: docContent,
+          metadata: doc.metadata
+        };
+      }),
+      ...companyKnowledge.map(kb => {
+        // Use summary for knowledge docs too
+        let kbContent = '';
+        if (kb.summary_cache) {
+          try {
+            const summary = JSON.parse(kb.summary_cache);
+            kbContent = `Summary: ${summary.fullSummary}\n\nKey Points:\n${summary.keyPoints?.join('\n- ') || 'N/A'}`;
+          } catch (e) {
+            kbContent = kb.content || '';
+          }
+        } else {
+          kbContent = kb.content || '';
+        }
+        
+        return {
+          filename: `${kb.filename} (Company Knowledge: ${kb.category})`,
+          content: kbContent,
+          metadata: kb.metadata
+        };
       }))
     ];
     
