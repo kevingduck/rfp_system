@@ -61,6 +61,7 @@ async function initializeDatabase() {
         metadata TEXT,
         summary_cache TEXT,
         summary_generated_at TIMESTAMP,
+        is_main_document BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -175,6 +176,9 @@ async function initializeDatabase() {
 
     console.log('Creating indexes...');
     
+    // Add is_main_document column if it doesn't exist (must be done before creating index)
+    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_main_document BOOLEAN DEFAULT FALSE`);
+    
     // Create indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_main ON documents(project_id, is_main_document) WHERE is_main_document = TRUE`);
@@ -255,7 +259,6 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_path TEXT`);
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_type TEXT`);
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
-    await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_main_document BOOLEAN DEFAULT FALSE`);
     
     // Fix rfi_questions table
     await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'text'`);
