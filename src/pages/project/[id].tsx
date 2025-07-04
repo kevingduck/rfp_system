@@ -9,6 +9,8 @@ import { RFPWizard } from '@/components/RFPWizard';
 import { WelcomeCard } from '@/components/WelcomeCard';
 import { DraftPreview } from '@/components/DraftPreview';
 import { DocumentViewer } from '@/components/DocumentViewer';
+import { DocumentSummaryCard } from '@/components/DocumentSummaryCard';
+import { WebSourceSummaryCard } from '@/components/WebSourceSummaryCard';
 
 interface Document {
   id: string;
@@ -719,93 +721,59 @@ export default function ProjectPage() {
           webSources={webSources.length}
         />
 
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>{project?.project_type || 'Document'} Content Preview</CardTitle>
-              <CardDescription>AI-extracted information from your documents</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {documents.length > 0 ? (
-                <div className="space-y-6">
-                  {documents.map((doc, index) => (
-                    <div key={doc.id} className="border-b pb-4 last:border-0">
-                      <h4 className="font-semibold text-sm mb-2">
-                        {doc.filename}
-                        {doc.metadata?.sheetCount && (
-                          <span className="text-gray-500 ml-2">({doc.metadata.sheetCount} sheets)</span>
-                        )}
-                      </h4>
-                      
-                      {/* Display extracted sections */}
-                      {doc.extractedInfo && (
-                        <div className="space-y-3">
-                          {doc.extractedInfo.scope && (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Scope:</h5>
-                              <p className="text-sm text-gray-600">{doc.extractedInfo.scope}</p>
-                            </div>
-                          )}
-                          {doc.extractedInfo.requirements && (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Requirements:</h5>
-                              <p className="text-sm text-gray-600">{doc.extractedInfo.requirements}</p>
-                            </div>
-                          )}
-                          {doc.extractedInfo.timeline && (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Timeline:</h5>
-                              <p className="text-sm text-gray-600">{doc.extractedInfo.timeline}</p>
-                            </div>
-                          )}
-                          {doc.extractedInfo.budget && (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Budget:</h5>
-                              <p className="text-sm text-gray-600">{doc.extractedInfo.budget}</p>
-                            </div>
-                          )}
-                          {doc.extractedInfo.deliverables && (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Deliverables:</h5>
-                              <p className="text-sm text-gray-600">{doc.extractedInfo.deliverables}</p>
-                            </div>
-                          )}
-                          
-                          {/* Show raw text preview for Excel files */}
-                          {doc.file_type === '.xlsx' || doc.file_type === '.xls' || doc.file_type === '.xlsm' ? (
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700">Spreadsheet Content Preview:</h5>
-                              <div className="bg-gray-50 p-3 rounded text-xs font-mono overflow-x-auto max-h-60 overflow-y-auto">
-                                <pre className="whitespace-pre-wrap">
-                                  {doc.extractedInfo.text ? 
-                                    doc.extractedInfo.text.substring(0, 1000) + 
-                                    (doc.extractedInfo.text.length > 1000 ? '...' : '') 
-                                    : 'No content extracted'}
-                                </pre>
-                              </div>
-                            </div>
-                          ) : (
-                            /* Show text preview for other documents */
-                            doc.extractedInfo.text && (
-                              <div>
-                                <h5 className="font-medium text-sm text-gray-700">Content Preview:</h5>
-                                <p className="text-sm text-gray-600">
-                                  {doc.extractedInfo.text.substring(0, 300)}
-                                  {doc.extractedInfo.text.length > 300 && '...'}
-                                </p>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </div>
+        <div className="mt-8 space-y-8">
+          {/* Document Summaries */}
+          {documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Document Summaries</CardTitle>
+                <CardDescription>AI-generated summaries of your uploaded documents</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {documents.map((doc) => (
+                    <DocumentSummaryCard 
+                      key={doc.id} 
+                      document={doc} 
+                      projectId={id as string}
+                    />
                   ))}
                 </div>
-              ) : (
-                <p className="text-gray-500">Upload documents or add web sources to see extracted content</p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Web Source Summaries */}
+          {webSources.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Web Source Summaries</CardTitle>
+                <CardDescription>AI-generated summaries of your web sources</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {webSources.map((source) => (
+                    <WebSourceSummaryCard 
+                      key={source.id} 
+                      source={source} 
+                      projectId={id as string}
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Empty State */}
+          {documents.length === 0 && webSources.length === 0 && (
+            <Card>
+              <CardContent className="py-8">
+                <p className="text-center text-gray-500">
+                  Upload documents or add web sources to see AI-generated summaries
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
         </>
         )}
