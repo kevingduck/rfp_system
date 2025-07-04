@@ -25,12 +25,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid RFI project' });
     }
     
-    // Get uploaded documents
+    // Get uploaded documents - find the main RFI/RFP document
     const documentsResult = await query(
-      'SELECT * FROM documents WHERE project_id = $1',
+      'SELECT * FROM documents WHERE project_id = $1 ORDER BY uploaded_at ASC',
       [id]
     );
     const documents = documentsResult.rows;
+    
+    if (documents.length === 0) {
+      return res.status(400).json({ error: 'No documents uploaded. Please upload the RFI/RFP document first.' });
+    }
+    
+    // Find the main RFI/RFP document (first uploaded or contains RFI/RFP in filename)
+    let mainDocument = documents.find(doc => 
+      doc.filename?.toLowerCase().includes('rfi') || 
+      doc.filename?.toLowerCase().includes('rfp')
+    ) || documents[0]; // Default to first document if no RFI/RFP in filename
+    
+    console.log(`[Smart Questions] Processing main document: ${mainDocument.filename}`);
     
     // Get company knowledge for answer generation
     const knowledgeResult = await query(
@@ -39,11 +51,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     const companyKnowledge = knowledgeResult.rows;
 
-    // Generate smart questions with answers using AI
+    // Generate smart questions with answers using AI - only from main document
     const aiService = new AIService();
     const smartQuestions = await aiService.extractQuestionsWithAnswers({
       projectName: project.name,
-      documents,
+      documents: [mainDocument], // Only process the main RFI/RFP document
       companyKnowledge,
       industry: 'VoIP/Telecommunications'
     });
@@ -70,7 +82,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({
       success: true,
       questionsAdded: smartQuestions.length,
-      questions: smartQuestions
+      questions: smartQuestions,
+      sourceDocument: mainDocument.filename,
+      message: `Extracted ${smartQuestions.length} questions from ${mainDocument.filename} and generated answers based on your company knowledge.`
     });
   } catch (error) {
     console.error('Smart questions generation error:', error);

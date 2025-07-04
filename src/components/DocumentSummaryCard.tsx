@@ -37,6 +37,14 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
     // Extract full content from various possible locations
     let contentText = '';
     
+    // Debug logging
+    console.log('[DocumentSummaryCard] Document data:', {
+      filename: document.filename,
+      hasContent: !!document.content,
+      hasExtractedInfo: !!document.extractedInfo,
+      contentType: typeof document.content
+    });
+    
     // First check extractedInfo
     if (document.extractedInfo?.text) {
       contentText = document.extractedInfo.text;
@@ -47,14 +55,21 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
         const parsedContent = typeof document.content === 'string' 
           ? JSON.parse(document.content) 
           : document.content;
-        contentText = parsedContent.text || '';
+        contentText = parsedContent.text || JSON.stringify(parsedContent, null, 2);
       } catch (e) {
         // If not JSON, use as plain text
         contentText = document.content;
       }
     }
     
-    setFullContent(contentText);
+    // If still no content, check for raw text in extractedInfo
+    if (!contentText && document.extractedInfo) {
+      contentText = typeof document.extractedInfo === 'string' 
+        ? document.extractedInfo 
+        : JSON.stringify(document.extractedInfo, null, 2);
+    }
+    
+    setFullContent(contentText || 'Document content not available');
   }, [document]);
 
   const generateSummary = async (force = false) => {
@@ -215,28 +230,50 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
     );
   };
 
+  // Determine if this is the main RFI/RFP document
+  const isRFIDocument = document.filename?.toLowerCase().includes('rfi') || 
+                        document.filename?.toLowerCase().includes('rfp') ||
+                        document.metadata?.isMainDocument;
+
   return (
     <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center">
+        <div className="flex items-center flex-1">
           <FileText className="h-5 w-5 text-gray-500 mr-2" />
-          <h4 className="font-semibold text-sm">
-            {document.filename}
-            {document.metadata?.sheetCount && (
-              <span className="text-gray-500 ml-2 font-normal">({document.metadata.sheetCount} sheets)</span>
+          <div className="flex-1">
+            <h4 className="font-semibold text-sm">
+              {document.filename}
+              {document.metadata?.sheetCount && (
+                <span className="text-gray-500 ml-2 font-normal">({document.metadata.sheetCount} sheets)</span>
+              )}
+            </h4>
+            {isRFIDocument && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                Client RFI/RFP Document
+              </span>
             )}
-          </h4>
+          </div>
         </div>
         <span className="text-xs text-gray-500">
           {document.file_type || 'Document'}
         </span>
       </div>
 
-      {/* Summary Section */}
+      {/* Summary Section - Always show first if available */}
       {renderSummary()}
 
-      {/* Toggle for Full Content */}
-      {fullContent && (
+      {/* Content Preview - Show if no summary yet */}
+      {fullContent && !summary && (
+        <div className="mb-3 p-3 bg-gray-50 rounded-md">
+          <h5 className="font-medium text-sm text-gray-700 mb-2">Document Preview</h5>
+          <p className="text-xs text-gray-600 line-clamp-3">
+            {fullContent.substring(0, 300)}{fullContent.length > 300 ? '...' : ''}
+          </p>
+        </div>
+      )}
+
+      {/* Toggle for Full Content - Always available */}
+      {fullContent && fullContent !== 'Document content not available' && (
         <div className="mt-4">
           <Button
             variant="outline"
@@ -247,19 +284,22 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
             {showFullContent ? (
               <>
                 <ChevronUp className="mr-2 h-4 w-4" />
-                Hide Original Content
+                Hide Full Document
               </>
             ) : (
               <>
                 <ChevronDown className="mr-2 h-4 w-4" />
-                Show Original Content
+                View Full Document
               </>
             )}
           </Button>
 
           {showFullContent && (
             <div className="mt-3 bg-gray-50 border border-gray-200 rounded-md p-4 max-h-96 overflow-y-auto">
-              <h5 className="font-medium text-sm text-gray-700 mb-2">Original Document Content</h5>
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="font-medium text-sm text-gray-700">Full Document Content</h5>
+                <span className="text-xs text-gray-500">{fullContent.length.toLocaleString()} characters</span>
+              </div>
               <pre className="whitespace-pre-wrap text-xs text-gray-600 font-mono">
                 {fullContent}
               </pre>

@@ -168,7 +168,7 @@ export default function QuestionsPage() {
       if (res.ok) {
         const result = await res.json();
         await fetchQuestions();
-        alert(`Successfully extracted ${result.questionsAdded} questions from the RFI document and generated suggested answers!`);
+        alert(result.message || `Successfully extracted ${result.questionsAdded} questions from the RFI document and generated suggested answers!`);
       }
     } catch (error) {
       console.error('Failed to generate AI questions:', error);
@@ -232,6 +232,14 @@ export default function QuestionsPage() {
           </Link>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">RFI Response: {project.name}</h1>
           <p className="text-gray-600">Questions we need to answer as a vendor responding to this RFI</p>
+          {questions.length === 0 && (
+            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800">
+                <strong>Getting Started:</strong> Click "Extract Questions from RFI/RFP" below to analyze the uploaded document 
+                and generate initial answers from your company knowledge base.
+              </p>
+            </div>
+          )}
         </div>
 
         {questions.length === 0 && (
@@ -248,7 +256,7 @@ export default function QuestionsPage() {
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
-                  {isGenerating ? 'Extracting & Generating...' : 'Extract Questions & Generate Answers'}
+                  {isGenerating ? 'Extracting Questions & Generating Answers...' : 'Extract Questions from RFI/RFP'}
                 </Button>
                 <Button onClick={() => loadTemplate('voip')} variant="outline">
                   VoIP Template

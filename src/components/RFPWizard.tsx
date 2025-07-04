@@ -52,29 +52,29 @@ export function RFPWizard({
   const steps: WizardStep[] = [
     {
       id: 'upload',
-      title: 'Upload Documents',
-      description: `Upload ${projectType} documents, requirements, and any reference materials`,
+      title: `Upload Client's ${projectType}`,
+      description: `Upload the ${projectType} document you received from the client`,
       icon: <Upload className="h-6 w-6" />,
       type: 'upload'
     },
     {
       id: 'context',
-      title: 'Provide Context',
-      description: 'Answer a few questions to help create the perfect document',
-      icon: <MessageSquare className="h-6 w-6" />,
+      title: 'Supporting Documents',
+      description: 'Add your company info, case studies, and certifications',
+      icon: <FileCheck className="h-6 w-6" />,
       type: 'chat'
     },
     {
       id: 'review',
-      title: 'Review & Refine',
-      description: 'Review your inputs and make any final adjustments',
-      icon: <FileText className="h-6 w-6" />,
+      title: 'Review Questions & Answers',
+      description: 'Review extracted questions and edit generated answers',
+      icon: <MessageSquare className="h-6 w-6" />,
       type: 'review'
     },
     {
       id: 'generate',
-      title: 'Generate Document',
-      description: `Create your AI-powered ${projectType} document`,
+      title: 'Generate Response',
+      description: `Create your professional vendor response to the ${projectType}`,
       icon: <Sparkles className="h-6 w-6" />,
       type: 'generate'
     }
@@ -253,11 +253,20 @@ export function RFPWizard({
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Tip:</strong> Upload the original {projectType} document, requirements spreadsheets, 
-                  technical specifications, and any other relevant materials. The more context you provide, 
-                  the better the AI can help you.
+                  <strong>Step 1:</strong> Upload the {projectType} document you received from the client. 
+                  This document contains the questions and requirements we need to respond to. 
+                  We'll analyze it to extract all questions automatically.
                 </p>
               </div>
+              
+              {documents.length === 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>Important:</strong> The first document should be the client's {projectType}. 
+                    Additional supporting documents can be added in the next step.
+                  </p>
+                </div>
+              )}
               
               {/* Upload Area */}
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">

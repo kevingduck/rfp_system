@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2 } from 'lucide-react';
+import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2, ArrowRight, Check } from 'lucide-react';
 import { GenerationStatus } from '@/components/GenerationStatus';
 import { RFPWizard } from '@/components/RFPWizard';
 import { WelcomeCard } from '@/components/WelcomeCard';
@@ -470,10 +470,10 @@ export default function ProjectPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-2xl text-blue-900">
-                        Upload {project?.project_type} Document to Respond To
+                        Step 1: Upload the {project?.project_type} Document You Received
                       </CardTitle>
                       <CardDescription className="text-blue-700 mt-2">
-                        Start by uploading the {project?.project_type} document you received that needs a response
+                        This is the document from the client that contains questions and requirements
                       </CardDescription>
                     </div>
                     <FileText className="h-12 w-12 text-blue-600" />
@@ -481,9 +481,15 @@ export default function ProjectPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <p className="text-sm text-blue-800">
-                      We'll analyze this document to extract questions and requirements that need to be addressed in our vendor response.
-                    </p>
+                    <div className="bg-white border border-blue-200 rounded-md p-3">
+                      <h4 className="font-medium text-sm text-blue-900 mb-2">What happens next:</h4>
+                      <ol className="text-sm text-blue-800 space-y-1">
+                        <li>1. We'll analyze the document to extract all questions</li>
+                        <li>2. Generate initial answers from your company knowledge</li>
+                        <li>3. You can review and edit all answers</li>
+                        <li>4. Generate your final response document</li>
+                      </ol>
+                    </div>
                     <div className="flex gap-4">
                       <Button 
                         onClick={() => fileInputRef.current?.click()}
@@ -509,6 +515,44 @@ export default function ProjectPage() {
               </Card>
             )}
 
+            {/* Workflow Status Indicator */}
+            {documents.length > 0 && project?.project_type === 'RFI' && (
+              <Card className="mb-6 bg-gradient-to-r from-gray-50 to-gray-100">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-8">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${documents.length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}>
+                          {documents.length > 0 ? <Check className="h-5 w-5 text-white" /> : <span className="text-white text-sm">1</span>}
+                        </div>
+                        <span className="ml-2 text-sm font-medium">RFI Uploaded</span>
+                      </div>
+                      <div className="h-px w-12 bg-gray-300" />
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <span className="text-white text-sm">2</span>
+                        </div>
+                        <span className="ml-2 text-sm text-gray-600">Extract Questions</span>
+                      </div>
+                      <div className="h-px w-12 bg-gray-300" />
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <span className="text-white text-sm">3</span>
+                        </div>
+                        <span className="ml-2 text-sm text-gray-600">Generate Response</span>
+                      </div>
+                    </div>
+                    <Link href={`/project/${id}/questions`}>
+                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                        Next: Extract Questions
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="mb-8 flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -528,9 +572,9 @@ export default function ProjectPage() {
               <div className="flex gap-2">
                 {project?.project_type === 'RFI' && documents.length > 0 && (
                   <Link href={`/project/${id}/questions`}>
-                    <Button variant="outline" size="lg">
+                    <Button variant="outline" size="lg" className="bg-purple-50 hover:bg-purple-100 border-purple-300">
                       <Settings className="mr-2 h-5 w-5" />
-                      Review & Answer Questions
+                      Extract Questions & Generate Answers
                     </Button>
                   </Link>
                 )}
