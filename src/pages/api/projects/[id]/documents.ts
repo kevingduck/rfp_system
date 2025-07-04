@@ -21,24 +21,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const documentsWithParsedData = documents.map(doc => {
           let extractedInfo = {};
           let metadata = {};
+          let parsedContent = null;
           
           try {
-            const content = JSON.parse(doc.content);
+            // Try to parse content as JSON first
+            parsedContent = JSON.parse(doc.content);
             // Extract key information from content
             extractedInfo = {
-              scope: content.scope,
-              requirements: content.requirements,
-              timeline: content.timeline,
-              budget: content.budget,
-              deliverables: content.deliverables,
-              text: content.text
+              scope: parsedContent.scope,
+              requirements: parsedContent.requirements,
+              timeline: parsedContent.timeline,
+              budget: parsedContent.budget,
+              deliverables: parsedContent.deliverables,
+              text: parsedContent.text
             };
           } catch (e) {
-            console.error('Failed to parse document content:', e);
+            // If JSON parse fails, content is plain text
+            extractedInfo = {
+              text: doc.content
+            };
           }
           
           try {
-            metadata = JSON.parse(doc.metadata);
+            if (doc.metadata) {
+              metadata = JSON.parse(doc.metadata);
+            }
           } catch (e) {
             console.error('Failed to parse document metadata:', e);
           }
@@ -47,8 +54,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             id: doc.id,
             filename: doc.filename,
             file_type: doc.file_type || doc.mimetype,
+            content: doc.content, // Include raw content
             extractedInfo,
             metadata,
+            summary_cache: doc.summary_cache, // Include cached summary
+            summary_generated_at: doc.summary_generated_at,
             created_at: doc.uploaded_at || doc.created_at
           };
         });

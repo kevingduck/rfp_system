@@ -34,12 +34,27 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
       }
     }
     
-    // Set full content from extractedInfo or content
+    // Extract full content from various possible locations
+    let contentText = '';
+    
+    // First check extractedInfo
     if (document.extractedInfo?.text) {
-      setFullContent(document.extractedInfo.text);
-    } else if (document.content) {
-      setFullContent(document.content);
+      contentText = document.extractedInfo.text;
+    } 
+    // Then check if content is a JSON string with text property
+    else if (document.content) {
+      try {
+        const parsedContent = typeof document.content === 'string' 
+          ? JSON.parse(document.content) 
+          : document.content;
+        contentText = parsedContent.text || '';
+      } catch (e) {
+        // If not JSON, use as plain text
+        contentText = document.content;
+      }
     }
+    
+    setFullContent(contentText);
   }, [document]);
 
   const generateSummary = async () => {
@@ -102,7 +117,7 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
             <Sparkles className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
             <div className="flex-1">
               <h5 className="font-medium text-sm text-blue-900 mb-1">AI Summary</h5>
-              <p className="text-sm text-blue-800">{summary.summary || summary.fullSummary}</p>
+              <p className="text-sm text-blue-800">{summary.fullSummary}</p>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { query } from '@/lib/pg-db';
 import { parseDocument, extractKeyInformation } from '@/lib/document-parser';
+import { DocumentSummarizer } from '@/lib/document-summarizer';
 
 export const config = {
   api: {
@@ -68,6 +69,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         JSON.stringify(parsedDoc.metadata)
       ]
     );
+
+    // Get project type for summary generation
+    const projectResult = await query(
+      'SELECT project_type FROM projects WHERE id = $1',
+      [projectId]
+    );
+    const projectType = projectResult.rows[0]?.project_type || 'RFP';
+
+    // Generate summary automatically after upload
+    try {
+      const summarizer = new DocumentSummarizer();
+      const summary = await summarizer.summarizeDocument(
+        parsedDoc.text,
+        uploadedFile.originalFilename || 'document',
+        projectType as 'RFI' | 'RFP'
+      );
+
+      // Save the summary to the database
+      await query(
+        `UPDATE documents 
+         SET summary_cache = $1, summary_generated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [JSON.stringify(summary), documentId]
+      );
+
+      console.log(`[Upload] Generated and cached summary for document ${documentId}`);
+    } catch (error) {
+      console.error('[Upload] Failed to generate summary:', error);
+      // Don't fail the upload if summary generation fails
+    }
 
     res.status(200).json({
       id: documentId,
