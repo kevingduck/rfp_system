@@ -11,7 +11,7 @@ import { DocumentViewer } from '@/components/DocumentViewer';
 import { DocumentSummaryCard } from '@/components/DocumentSummaryCard';
 import { WebSourceSummaryCard } from '@/components/WebSourceSummaryCard';
 import { HelpButton } from '@/components/HelpButton';
-import { SmartChatAssistant } from '@/components/SmartChatAssistant';
+import { EnhancedChatAssistant } from '@/components/EnhancedChatAssistant';
 
 interface Document {
   id: string;
@@ -1436,8 +1436,8 @@ export default function ProjectPage() {
           />
         )}
         
-        {/* Smart Chat Assistant */}
-        <SmartChatAssistant
+        {/* Enhanced Chat Assistant */}
+        <EnhancedChatAssistant
           projectId={id as string}
           projectType={project?.project_type || 'RFP'}
           documents={documents}
@@ -1448,6 +1448,7 @@ export default function ProjectPage() {
           onGenerateAnswers={fillAnswersFromSources}
           onExtractQuestions={extractQuestions}
           onGenerateDraft={handleGenerateDraft}
+          onRefreshQuestions={fetchQuestions}
           currentDraft={draftData}
         />
       </div>
