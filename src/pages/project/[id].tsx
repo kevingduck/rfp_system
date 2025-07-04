@@ -57,6 +57,7 @@ export default function ProjectPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [webSources, setWebSources] = useState<WebSource[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [isScraping, setIsScraping] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
@@ -205,28 +206,81 @@ export default function ProjectPage() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('projectId', id as string);
-
+    const uploadedDocs: Document[] = [];
+    const failedUploads: string[] = [];
+    
+    // Process files in batches to avoid overload
+    const BATCH_SIZE = 3;
+    const fileArray = Array.from(files);
+    
+    // Show initial progress
+    setUploadProgress(`Uploading ${fileArray.length} file${fileArray.length > 1 ? 's' : ''}...`);
+    
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      for (let i = 0; i < fileArray.length; i += BATCH_SIZE) {
+        const batch = fileArray.slice(i, i + BATCH_SIZE);
+        const uploadPromises = batch.map(async (file) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('projectId', id as string);
 
-      if (res.ok) {
-        const doc = await res.json();
-        setDocuments([...documents, doc]);
+          try {
+            const res = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (res.ok) {
+              const doc = await res.json();
+              return { success: true, doc, filename: file.name };
+            } else {
+              const error = await res.text();
+              return { success: false, filename: file.name, error };
+            }
+          } catch (error) {
+            return { success: false, filename: file.name, error: error?.toString() };
+          }
+        });
+
+        // Update progress
+        setUploadProgress(`Uploading files ${i + 1}-${Math.min(i + BATCH_SIZE, fileArray.length)} of ${fileArray.length}...`);
+        
+        // Wait for batch to complete
+        const results = await Promise.all(uploadPromises);
+        
+        // Process results
+        results.forEach(result => {
+          if (result.success) {
+            uploadedDocs.push(result.doc);
+          } else {
+            failedUploads.push(result.filename);
+          }
+        });
+        
+        // Update documents after each batch
+        if (uploadedDocs.length > 0) {
+          setDocuments(prev => [...prev, ...uploadedDocs]);
+          uploadedDocs.length = 0; // Clear for next batch
+        }
       }
+      
+      // Show results
+      if (failedUploads.length > 0) {
+        alert(`Upload completed with errors:\n\nSuccessful: ${fileArray.length - failedUploads.length} files\nFailed: ${failedUploads.join(', ')}`);
+      } else if (fileArray.length > 1) {
+        alert(`Successfully uploaded ${fileArray.length} files`);
+      }
+      
     } catch (error) {
       console.error('Upload failed:', error);
+      alert('Upload failed. Please try again with fewer files.');
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -577,7 +631,7 @@ export default function ProjectPage() {
                         {isUploading ? (
                           <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Uploading...
+                            {uploadProgress || 'Uploading...'}
                           </>
                         ) : (
                           <>
@@ -735,6 +789,7 @@ export default function ProjectPage() {
                   accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.xlsm"
                   className="hidden"
                   id="file-upload"
+                  multiple
                 />
                 <label htmlFor="file-upload">
                   <Button variant="outline" disabled={isUploading} asChild>
@@ -742,17 +797,21 @@ export default function ProjectPage() {
                       {isUploading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Uploading...
+                          {uploadProgress || 'Uploading...'}
                         </>
                       ) : (
                         <>
                           <Upload className="mr-2 h-4 w-4" />
-                          Choose File
+                          Choose Files
                         </>
                       )}
                     </span>
                   </Button>
                 </label>
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  You can select multiple files at once (Ctrl/Cmd + Click)
+                </p>
                 
                 <div className="mt-4 space-y-2">
                   {documents.map((doc) => (
@@ -868,13 +927,7 @@ export default function ProjectPage() {
                       ) : (
                         <>
                           <Sparkles className="mr-2 h-4 w-4" />
-                          {documents.filter(doc => 
-                            !doc.filename?.toLowerCase().includes('rfi') && 
-                            !doc.filename?.toLowerCase().includes('rfp')
-                          ).length > 0 
-                            ? 'Regenerate Answers from All Docs' 
-                            : 'Regenerate Answers from Company Knowledge'
-                          }
+                          Regenerate Answers from All Sources
                         </>
                       )}
                     </Button>
@@ -998,13 +1051,17 @@ export default function ProjectPage() {
                       <Sparkles className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
                       <div>
                         <p className="text-sm text-blue-800">
-                          <strong>Answer Generation:</strong> Click "Regenerate Answers" anytime to update answers based on:
+                          <strong>Answer Generation Sources:</strong> Click "Regenerate Answers" anytime to update answers using:
                         </p>
                         <ul className="text-sm text-blue-700 mt-1 ml-4 list-disc">
                           <li>Your company information and settings</li>
                           <li>Company knowledge base documents</li>
-                          <li>All uploaded documents (including the RFI itself)</li>
+                          <li>The RFI/RFP document itself for context</li>
+                          <li>All supporting documents you've uploaded</li>
                         </ul>
+                        <p className="text-sm text-blue-700 mt-2">
+                          The AI analyzes <strong>all available documents</strong> to provide comprehensive, accurate answers.
+                        </p>
                       </div>
                     </div>
                   </div>
