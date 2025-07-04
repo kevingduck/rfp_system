@@ -137,7 +137,7 @@ Type "help" for commands or "status" to see project overview.`,
     setPendingAction(null);
   };
 
-  const processUserMessage = async (message: string) => {
+  const processUserMessage = async (message: string): Promise<Message> => {
     const lowerMessage = message.toLowerCase().trim();
     
     // Handle cancel command
@@ -604,6 +604,8 @@ ${documents.map((doc, i) => `${i + 1}. ${doc.filename}`).join('\n')}`;
           await onSetMainDocument(documentToSelect.id);
           resetConversation();
           return createSystemMessage(`✓ "${documentToSelect.filename}" is now the main ${projectType} document. Please extract questions from it.`);
+        } else {
+          return createErrorMessage('Main document management is not available.');
         }
       } else {
         // Delete document
@@ -854,7 +856,9 @@ ${documents.map((doc, i) =>
     try {
       // Process the message and get bot response
       const botResponse = await processUserMessage(message);
-      setMessages(prev => [...prev, botResponse]);
+      if (botResponse) {
+        setMessages(prev => [...prev, botResponse]);
+      }
     } catch (error) {
       const errorMessage = createErrorMessage('Sorry, something went wrong. Please try again.');
       setMessages(prev => [...prev, errorMessage]);
