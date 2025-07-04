@@ -10,6 +10,7 @@ import { DraftPreview } from '@/components/DraftPreview';
 import { DocumentViewer } from '@/components/DocumentViewer';
 import { DocumentSummaryCard } from '@/components/DocumentSummaryCard';
 import { WebSourceSummaryCard } from '@/components/WebSourceSummaryCard';
+import { HelpButton } from '@/components/HelpButton';
 
 interface Document {
   id: string;
@@ -755,6 +756,7 @@ export default function ProjectPage() {
                 )}
               </div>
               <div className="flex gap-2">
+                <HelpButton startTab="workflow" />
                 {draftData && (
                   <>
                     <Button
