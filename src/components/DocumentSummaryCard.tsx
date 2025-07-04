@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Sparkles, FileText, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Sparkles, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
 interface DocumentSummaryCardProps {
   document: {
@@ -57,13 +57,17 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
     setFullContent(contentText);
   }, [document]);
 
-  const generateSummary = async () => {
-    if (summary || isGeneratingSummary) return;
+  const generateSummary = async (force = false) => {
+    if (!force && (summary || isGeneratingSummary)) return;
     
     setIsGeneratingSummary(true);
     try {
       const response = await fetch(`/api/projects/${projectId}/documents/${document.id}/summarize`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ force }),
       });
       
       if (response.ok) {
@@ -74,6 +78,20 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
       console.error('Failed to generate summary:', error);
     } finally {
       setIsGeneratingSummary(false);
+    }
+  };
+
+  const deleteSummary = async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/documents/${document.id}/delete-summary`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setSummary(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete summary:', error);
     }
   };
 
@@ -89,7 +107,7 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
             <Button 
               size="sm" 
               variant="outline"
-              onClick={generateSummary}
+              onClick={() => generateSummary()}
               disabled={isGeneratingSummary}
             >
               {isGeneratingSummary ? (
@@ -116,7 +134,32 @@ export function DocumentSummaryCard({ document, projectId }: DocumentSummaryCard
           <div className="flex items-start mb-2">
             <Sparkles className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
             <div className="flex-1">
-              <h5 className="font-medium text-sm text-blue-900 mb-1">AI Summary</h5>
+              <div className="flex items-center justify-between mb-1">
+                <h5 className="font-medium text-sm text-blue-900">AI Summary</h5>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => generateSummary(true)}
+                    disabled={isGeneratingSummary}
+                    title="Regenerate summary"
+                  >
+                    {isGeneratingSummary ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={deleteSummary}
+                    title="Delete summary"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               <p className="text-sm text-blue-800">{summary.fullSummary}</p>
             </div>
           </div>

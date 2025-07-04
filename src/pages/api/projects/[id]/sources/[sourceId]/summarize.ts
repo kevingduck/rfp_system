@@ -7,31 +7,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { id: projectId, documentId } = req.query;
+  const { id: projectId, sourceId } = req.query;
   const { force = false } = req.body || {};
 
-  if (!projectId || !documentId || typeof projectId !== 'string' || typeof documentId !== 'string') {
+  if (!projectId || !sourceId || typeof projectId !== 'string' || typeof sourceId !== 'string') {
     return res.status(400).json({ error: 'Invalid parameters' });
   }
 
   try {
-    // Get the document
+    // Get the web source
     const result = await query(
-      'SELECT * FROM documents WHERE id = $1 AND project_id = $2',
-      [documentId, projectId]
+      'SELECT * FROM web_sources WHERE id = $1 AND project_id = $2',
+      [sourceId, projectId]
     );
-    const document = result.rows[0];
+    const source = result.rows[0];
 
-    if (!document) {
-      return res.status(404).json({ error: 'Document not found' });
+    if (!source) {
+      return res.status(404).json({ error: 'Web source not found' });
     }
 
     // Check if we already have a cached summary (unless force regeneration is requested)
-    if (document.summary_cache && !force) {
+    if (source.summary_cache && !force) {
       try {
-        const cachedSummary = typeof document.summary_cache === 'string' 
-          ? JSON.parse(document.summary_cache) 
-          : document.summary_cache;
+        const cachedSummary = typeof source.summary_cache === 'string' 
+          ? JSON.parse(source.summary_cache) 
+          : source.summary_cache;
         
         // Only return cached summary if it's valid
         if (cachedSummary && cachedSummary.fullSummary) {
@@ -42,20 +42,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Extract the actual text content
-    let textContent = '';
-    try {
-      const parsedContent = typeof document.content === 'string' 
-        ? JSON.parse(document.content) 
-        : document.content;
-      textContent = parsedContent.text || document.content;
-    } catch (e) {
-      // If not JSON, use as plain text
-      textContent = document.content;
-    }
-
-    if (!textContent) {
-      return res.status(400).json({ error: 'Document has no content to summarize' });
+    if (!source.content) {
+      return res.status(400).json({ error: 'Web source has no content to summarize' });
     }
 
     // Get project type
@@ -68,17 +56,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate new summary
     const summarizer = new DocumentSummarizer();
     const summary = await summarizer.summarizeDocument(
-      textContent,
-      document.filename,
+      source.content,
+      source.title || source.url,
       projectType
     );
 
     // Cache the summary
     await query(
-      `UPDATE documents 
+      `UPDATE web_sources 
        SET summary_cache = $1, summary_generated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
-      [JSON.stringify(summary), documentId]
+      [JSON.stringify(summary), sourceId]
     );
 
     res.status(200).json({ summary });
