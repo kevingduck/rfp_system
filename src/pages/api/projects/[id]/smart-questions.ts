@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Get company knowledge for answer generation
     const knowledgeResult = await query(
-      'SELECT * FROM company_knowledge ORDER BY created_at DESC',
+      'SELECT * FROM company_knowledge ORDER BY uploaded_at DESC',
       []
     );
     const companyKnowledge = knowledgeResult.rows;
