@@ -3,9 +3,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2, ArrowRight, Check } from 'lucide-react';
+import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2, ArrowRight, Check, Sparkles, Save, Edit2, CheckCircle, AlertCircle } from 'lucide-react';
 import { GenerationStatus } from '@/components/GenerationStatus';
-import { RFPWizard } from '@/components/RFPWizard';
 import { WelcomeCard } from '@/components/WelcomeCard';
 import { DraftPreview } from '@/components/DraftPreview';
 import { DocumentViewer } from '@/components/DocumentViewer';
@@ -39,6 +38,16 @@ interface Project {
   status: string;
 }
 
+interface Question {
+  id: string;
+  question_text: string;
+  question_type: string;
+  required: boolean;
+  order_index: number;
+  category?: string;
+  answer?: string;
+}
+
 export default function ProjectPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -52,19 +61,27 @@ export default function ProjectPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [urlInput, setUrlInput] = useState('');
-  const [showWizard, setShowWizard] = useState(false);
   const [chatContext, setChatContext] = useState<any>(null);
   const [showWelcome, setShowWelcome] = useState(true);
   const [draftData, setDraftData] = useState<any>(null);
   const [showDraftPreview, setShowDraftPreview] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
-  const [targetLength, setTargetLength] = useState<number>(15); // Default 15 pages
+  const [targetLength, setTargetLength] = useState<number>(20); // Default 20 pages
+  
+  // Questions state
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isExtractingQuestions, setIsExtractingQuestions] = useState(false);
+  const [questionsExtracted, setQuestionsExtracted] = useState(false);
+  const [editingAnswers, setEditingAnswers] = useState<Record<string, string>>({});
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [hasRFIDocument, setHasRFIDocument] = useState(false);
   
   useEffect(() => {
     if (id) {
       fetchProject();
       fetchDocuments();
       fetchWebSources();
+      fetchQuestions();
     }
   }, [id]);
   
@@ -88,7 +105,20 @@ export default function ProjectPage() {
       if (res.ok) {
         const data = await res.json();
         // Ensure data is an array
-        setDocuments(Array.isArray(data) ? data : []);
+        const docs = Array.isArray(data) ? data : [];
+        setDocuments(docs);
+        
+        // Check if we have an RFI/RFP document
+        const hasRFI = docs.some(doc => 
+          doc.filename?.toLowerCase().includes('rfi') || 
+          doc.filename?.toLowerCase().includes('rfp')
+        );
+        setHasRFIDocument(hasRFI);
+        
+        // If we have an RFI document and haven't extracted questions yet, do it automatically
+        if (hasRFI && docs.length === 1 && questions.length === 0) {
+          await extractQuestions();
+        }
       } else {
         console.error('Failed to fetch documents:', res.status);
         setDocuments([]);
@@ -96,6 +126,19 @@ export default function ProjectPage() {
     } catch (error) {
       console.error('Failed to fetch documents:', error);
       setDocuments([]);
+    }
+  };
+  
+  const fetchQuestions = async () => {
+    try {
+      const res = await fetch(`/api/projects/${id}/questions`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions(data);
+        setQuestionsExtracted(data.length > 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch questions:', error);
     }
   };
   
@@ -243,9 +286,92 @@ export default function ProjectPage() {
       console.error('Failed to delete web source:', error);
     }
   };
+  
+  const extractQuestions = async () => {
+    setIsExtractingQuestions(true);
+    try {
+      const res = await fetch(`/api/projects/${id}/smart-questions`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        await fetchQuestions();
+        setQuestionsExtracted(true);
+      } else {
+        const errorData = await res.json();
+        console.error('API Error:', errorData);
+        alert(errorData.details || 'Failed to extract questions from the RFI/RFP document.');
+      }
+    } catch (error) {
+      console.error('Failed to extract questions:', error);
+      alert('Failed to extract questions. Please check your connection and try again.');
+    } finally {
+      setIsExtractingQuestions(false);
+    }
+  };
+  
+  const updateAnswer = async (questionId: string, answer: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/questions/${questionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer }),
+      });
+
+      if (res.ok) {
+        await fetchQuestions();
+        delete editingAnswers[questionId];
+        setEditingAnswers({...editingAnswers});
+      }
+    } catch (error) {
+      console.error('Failed to update answer:', error);
+    }
+  };
+  
+  const autoFillAnswers = async () => {
+    setIsAutoFilling(true);
+    try {
+      // This will be a new endpoint that analyzes supporting docs and fills answers
+      const res = await fetch(`/api/projects/${id}/fill-answers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: questions.map(q => ({ id: q.id, text: q.question_text })),
+          documents: documents.filter(doc => 
+            !doc.filename?.toLowerCase().includes('rfi') && 
+            !doc.filename?.toLowerCase().includes('rfp')
+          )
+        }),
+      });
+
+      if (res.ok) {
+        await fetchQuestions();
+        alert('Answers have been auto-filled based on your supporting documents.');
+      } else {
+        alert('Failed to auto-fill answers. Please try again.');
+      }
+    } catch (error) {
+      console.error('Failed to auto-fill answers:', error);
+      alert('Failed to auto-fill answers. Please check your connection and try again.');
+    } finally {
+      setIsAutoFilling(false);
+    }
+  };
 
   const generateDocument = async (wizardContext?: any) => {
     if (!id || !project) return;
+
+    // For RFI projects, ensure all questions have answers
+    if (project.project_type === 'RFI' && questions.length > 0) {
+      const unansweredQuestions = questions.filter(q => !q.answer);
+      if (unansweredQuestions.length > 0) {
+        const proceed = confirm(
+          `${unansweredQuestions.length} questions don't have answers yet. Generate anyway?`
+        );
+        if (!proceed) return;
+      }
+    }
 
     setIsGenerating(true);
     setGenerationStatus('Collecting resources...');
@@ -312,7 +438,6 @@ export default function ProjectPage() {
                     setDraftData(data.draft);
                     setShowDraftPreview(true);
                     setIsGenerating(false);
-                    setShowWizard(false);
                     setGenerationStatus('Draft generated successfully!');
                   }
                   
@@ -348,10 +473,6 @@ export default function ProjectPage() {
     }
   };
 
-  const handleWizardGenerate = (context: any) => {
-    setChatContext(context);
-    generateDocument(context);
-  };
   
   const handleDraftExport = async (includeCitations: boolean) => {
     if (!draftData || !id || !project) return;
@@ -389,8 +510,8 @@ export default function ProjectPage() {
     }
   };
 
-  // Check if we should show welcome (no documents and not in wizard mode)
-  const shouldShowWelcome = showWelcome && documents.length === 0 && webSources.length === 0 && !showWizard;
+  // Check if we should show welcome (no documents)
+  const shouldShowWelcome = showWelcome && documents.length === 0 && webSources.length === 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -409,56 +530,12 @@ export default function ProjectPage() {
             <WelcomeCard
               projectType={project?.project_type || 'RFP'}
               onChooseWizard={() => {
-                setShowWizard(true);
                 setShowWelcome(false);
               }}
               onChooseQuick={() => {
                 setShowWelcome(false);
               }}
             />
-          </>
-        ) : showWizard ? (
-          <>
-            <div className="mb-8 flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  {project ? `${project.project_type} Generation Wizard` : 'Loading...'}
-                </h1>
-                <p className="text-gray-600">
-                  Follow the guided steps to create your {project?.project_type}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => setShowWizard(false)}
-              >
-                Exit Wizard
-              </Button>
-            </div>
-            
-            <RFPWizard
-              projectId={id as string}
-              projectType={project?.project_type || 'RFP'}
-              documents={documents}
-              webSources={webSources}
-              onDocumentUpload={handleFileUpload}
-              onWebSourceAdd={async (url: string) => {
-                setUrlInput(url);
-                await handleWebScrape();
-              }}
-              onGenerate={handleWizardGenerate}
-              isGenerating={isGenerating}
-            />
-            
-            {/* Generation Status */}
-            {isGenerating && (
-              <GenerationStatus 
-                isGenerating={isGenerating}
-                status={generationStatus}
-                documents={documents.length}
-                webSources={webSources.length}
-              />
-            )}
           </>
         ) : (
           /* Traditional interface */
@@ -529,25 +606,46 @@ export default function ProjectPage() {
                       </div>
                       <div className="h-px w-12 bg-gray-300" />
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-white text-sm">2</span>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${questionsExtracted ? 'bg-green-500' : 'bg-gray-300'}`}>
+                          {questionsExtracted ? <Check className="h-5 w-5 text-white" /> : <span className="text-white text-sm">2</span>}
                         </div>
-                        <span className="ml-2 text-sm text-gray-600">Extract Questions</span>
+                        <span className="ml-2 text-sm font-medium">Extract Questions</span>
                       </div>
                       <div className="h-px w-12 bg-gray-300" />
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-white text-sm">3</span>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${questions.some(q => q.answer) ? 'bg-green-500' : 'bg-gray-300'}`}>
+                          {questions.some(q => q.answer) ? <Check className="h-5 w-5 text-white" /> : <span className="text-white text-sm">3</span>}
                         </div>
-                        <span className="ml-2 text-sm text-gray-600">Generate Response</span>
+                        <span className="ml-2 text-sm font-medium">Answer Questions</span>
+                      </div>
+                      <div className="h-px w-12 bg-gray-300" />
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${draftData ? 'bg-green-500' : 'bg-gray-300'}`}>
+                          {draftData ? <Check className="h-5 w-5 text-white" /> : <span className="text-white text-sm">4</span>}
+                        </div>
+                        <span className="ml-2 text-sm font-medium">Generate Response</span>
                       </div>
                     </div>
-                    <Link href={`/project/${id}/questions`}>
-                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
-                        Next: Extract Questions
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                    {!questionsExtracted && (
+                      <Button 
+                        size="sm" 
+                        className="bg-purple-600 hover:bg-purple-700"
+                        onClick={extractQuestions}
+                        disabled={isExtractingQuestions}
+                      >
+                        {isExtractingQuestions ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Extracting...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Extract Questions
+                          </>
+                        )}
                       </Button>
-                    </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -570,15 +668,6 @@ export default function ProjectPage() {
                 )}
               </div>
               <div className="flex gap-2">
-                {project?.project_type === 'RFI' && documents.length > 0 && (
-                  <Link href={`/project/${id}/questions`}>
-                    <Button variant="outline" size="lg" className="bg-purple-50 hover:bg-purple-100 border-purple-300">
-                      <Settings className="mr-2 h-5 w-5" />
-                      Extract Questions & Generate Answers
-                    </Button>
-                  </Link>
-                )}
-                
                 {draftData && (
                   <>
                     <Button
@@ -602,16 +691,6 @@ export default function ProjectPage() {
                   </>
                 )}
                 
-                <Button
-                  onClick={() => setShowWizard(true)}
-                  variant="outline"
-                  size="lg"
-                  disabled={!project}
-                >
-                  <Wand2 className="mr-2 h-5 w-5" />
-                  Use Wizard
-                </Button>
-                
                 <Button 
                   onClick={() => generateDocument()} 
                   disabled={isGenerating || !project || (documents.length === 0 && webSources.length === 0)}
@@ -625,7 +704,7 @@ export default function ProjectPage() {
                 ) : (
                   <>
                     <Download className="mr-2 h-5 w-5" />
-                    {draftData ? 'Regenerate' : 'Quick Generate'}
+                    {draftData ? 'Regenerate' : 'Generate ' + (project?.project_type || '')}
                   </>
                 )}
                 </Button>
@@ -638,12 +717,14 @@ export default function ProjectPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Upload className="mr-2 h-5 w-5" />
-                  Document Upload
+                  {questionsExtracted ? 'Supporting Documents' : 'Document Upload'}
                 </CardTitle>
                 <CardDescription>
                   {documents.length === 0 
                     ? `Upload the ${project?.project_type} document you received`
-                    : 'Upload additional supporting documents (company info, case studies, certifications)'}
+                    : questionsExtracted 
+                      ? 'Upload company info, case studies, certifications to auto-fill answers'
+                      : 'Upload additional supporting documents'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -760,6 +841,159 @@ export default function ProjectPage() {
             </Card>
           </div>
         </div>
+
+        {/* Questions Section - Show after questions are extracted */}
+        {project?.project_type === 'RFI' && questionsExtracted && questions.length > 0 && (
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Extracted Questions & Answers</CardTitle>
+                    <CardDescription>
+                      Review and edit answers to the questions from the RFI document
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    {documents.filter(doc => 
+                      !doc.filename?.toLowerCase().includes('rfi') && 
+                      !doc.filename?.toLowerCase().includes('rfp')
+                    ).length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={autoFillAnswers}
+                        disabled={isAutoFilling}
+                      >
+                        {isAutoFilling ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Auto-filling...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Auto-fill from Supporting Docs
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {questions.map((question, index) => (
+                    <div key={question.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">
+                            {index + 1}. {question.question_text}
+                            {question.required && <span className="text-red-500 ml-1">*</span>}
+                          </p>
+                          {question.category && (
+                            <span className="text-xs text-gray-500 mt-1">Category: {question.category}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Answer section */}
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Answer:</label>
+                        {editingAnswers[question.id] !== undefined ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editingAnswers[question.id]}
+                              onChange={(e) => setEditingAnswers({
+                                ...editingAnswers,
+                                [question.id]: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border rounded-md"
+                              rows={4}
+                              placeholder="Enter your answer..."
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => updateAnswer(question.id, editingAnswers[question.id])}
+                              >
+                                <Save className="mr-2 h-4 w-4" />
+                                Save Answer
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const newEditing = {...editingAnswers};
+                                  delete newEditing[question.id];
+                                  setEditingAnswers(newEditing);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-white border rounded-md p-3">
+                            {question.answer ? (
+                              <div>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{question.answer}</p>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="mt-2"
+                                  onClick={() => setEditingAnswers({
+                                    ...editingAnswers,
+                                    [question.id]: question.answer || ''
+                                  })}
+                                >
+                                  <Edit2 className="mr-2 h-4 w-4" />
+                                  Edit Answer
+                                </Button>
+                              </div>
+                            ) : (
+                              <div>
+                                <p className="text-sm text-gray-500 italic">No answer provided yet</p>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="mt-2"
+                                  onClick={() => setEditingAnswers({
+                                    ...editingAnswers,
+                                    [question.id]: ''
+                                  })}
+                                >
+                                  <Edit2 className="mr-2 h-4 w-4" />
+                                  Add Answer
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Info about supporting documents */}
+                {documents.filter(doc => 
+                  !doc.filename?.toLowerCase().includes('rfi') && 
+                  !doc.filename?.toLowerCase().includes('rfp')
+                ).length === 0 && (
+                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+                    <div className="flex items-start">
+                      <AlertCircle className="h-5 w-5 text-amber-600 mr-2 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-amber-800">
+                          <strong>Tip:</strong> Upload supporting documents (company info, case studies, certifications) to auto-fill answers based on your content.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Generation Configuration */}
         <div className="mt-8">

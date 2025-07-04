@@ -1150,4 +1150,107 @@ Make questions specific to the context and avoid generic questions.`;
 
     return questions;
   }
+
+  async generateAnswersFromDocuments(params: {
+    questions: Array<{ id: string; text: string }>;
+    documents: Array<{ filename: string; content: string; metadata?: any }>;
+  }): Promise<Array<{ questionId: string; answer: string }>> {
+    console.log(`[AIService] Generating answers for ${params.questions.length} questions from ${params.documents.length} documents`);
+    
+    try {
+      // Build document context
+      const documentContext = params.documents.map(doc => {
+        let content = doc.content;
+        // Parse content if it's JSON
+        if (typeof content === 'string' && content.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(content);
+            content = parsed.text || JSON.stringify(parsed, null, 2);
+          } catch (e) {
+            // Use as-is if not valid JSON
+          }
+        }
+        
+        // Limit content length
+        if (content.length > 10000) {
+          content = content.substring(0, 10000) + '... [truncated]';
+        }
+        
+        return `=== ${doc.filename} ===\n${content}\n`;
+      }).join('\n\n');
+      
+      // Build questions list
+      const questionsList = params.questions.map((q, idx) => 
+        `${idx + 1}. ${q.text} (ID: ${q.id})`
+      ).join('\n');
+      
+      const prompt = `You are analyzing supporting documents to answer RFI questions. 
+Based on the following documents, provide concise, accurate answers to each question.
+If the documents don't contain relevant information for a question, indicate that clearly.
+
+SUPPORTING DOCUMENTS:
+${documentContext}
+
+QUESTIONS TO ANSWER:
+${questionsList}
+
+For each question, provide an answer in the following format:
+QUESTION_ID: [the ID from above]
+ANSWER: [your detailed answer based on the documents]
+---
+
+Be specific and reference information from the documents where relevant.`;
+
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      return this.parseAnswers(content);
+    } catch (error) {
+      console.error('AI answer generation error:', error);
+      return [];
+    }
+  }
+
+  private parseAnswers(response: string): Array<{ questionId: string; answer: string }> {
+    const answers: Array<{ questionId: string; answer: string }> = [];
+    const sections = response.split('---');
+    
+    for (const section of sections) {
+      const lines = section.trim().split('\n');
+      let questionId = '';
+      let answer = '';
+      
+      for (const line of lines) {
+        if (line.startsWith('QUESTION_ID:')) {
+          questionId = line.replace('QUESTION_ID:', '').trim();
+        } else if (line.startsWith('ANSWER:')) {
+          answer = line.replace('ANSWER:', '').trim();
+          // Get the rest of the answer if it spans multiple lines
+          const answerStartIndex = lines.indexOf(line);
+          if (answerStartIndex < lines.length - 1) {
+            answer = lines.slice(answerStartIndex)
+              .join('\n')
+              .replace('ANSWER:', '')
+              .trim();
+          }
+        }
+      }
+      
+      if (questionId && answer) {
+        answers.push({ questionId, answer });
+      }
+    }
+    
+    return answers;
+  }
 }
