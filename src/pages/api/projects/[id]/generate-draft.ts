@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { id } = req.query;
-  const { chatContext } = req.body || {};
+  const { chatContext, targetLength = 15 } = req.body || {};
 
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid project ID' });
@@ -141,7 +141,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         companyInfo,
         rfiQuestions,
         chatContext,
-        knowledgeBase
+        knowledgeBase,
+        targetLength
       }, progressCallback);
     } else {
       sendProgress('Summarizing documents...', 50);
@@ -175,7 +176,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })),
         companyInfo,
         chatContext,
-        knowledgeBase
+        knowledgeBase,
+        targetLength
       }, progressCallback);
     }
 

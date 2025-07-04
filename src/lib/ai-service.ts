@@ -44,6 +44,7 @@ interface DocumentContext {
     project_plans?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
     legal?: Array<{ filename: string; content: string; metadata?: { summary_cache?: string; }; }>;
   };
+  targetLength?: number;
 }
 
 export class AIService {
@@ -539,6 +540,11 @@ SECTION_NAME: [content]
 SECTION_NAME: [content]
 etc.
 
+TARGET LENGTH: The final document should be approximately ${context.targetLength || 15} pages long. Adjust the detail level of each section accordingly:
+- For shorter documents (5-10 pages): Be concise but comprehensive, focus on key points
+- For medium documents (10-20 pages): Include more detail, examples, and explanations
+- For longer documents (20-50 pages): Be thorough, include extensive detail, case studies, and comprehensive coverage
+
 Make the content specific to VoIP/telecommunications based on the context provided. Be professional, comprehensive, and position us as the ideal vendor for their needs.
 
 CITATION REQUIREMENT: 
@@ -765,6 +771,11 @@ Format your response as:
 SECTION_NAME: [content]
 SECTION_NAME: [content]
 etc.
+
+TARGET LENGTH: The final document should be approximately ${context.targetLength || 15} pages long. Adjust the detail level of each section accordingly:
+- For shorter documents (5-10 pages): Be concise but comprehensive, focus on key points
+- For medium documents (10-20 pages): Include more detail, examples, and explanations
+- For longer documents (20-50 pages): Be thorough, include extensive detail, case studies, and comprehensive coverage
 
 Make the content specific, detailed, and professional. Use the uploaded document context to make it as relevant and accurate as possible.
 

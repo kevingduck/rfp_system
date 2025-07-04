@@ -8,6 +8,7 @@ import { GenerationStatus } from '@/components/GenerationStatus';
 import { RFPWizard } from '@/components/RFPWizard';
 import { WelcomeCard } from '@/components/WelcomeCard';
 import { DraftPreview } from '@/components/DraftPreview';
+import { DocumentViewer } from '@/components/DocumentViewer';
 
 interface Document {
   id: string;
@@ -54,6 +55,8 @@ export default function ProjectPage() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [draftData, setDraftData] = useState<any>(null);
   const [showDraftPreview, setShowDraftPreview] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [targetLength, setTargetLength] = useState<number>(15); // Default 15 pages
   
   useEffect(() => {
     if (id) {
@@ -262,7 +265,10 @@ export default function ProjectPage() {
       const res = await fetch(`/api/projects/${id}/generate-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatContext: wizardContext || chatContext })
+        body: JSON.stringify({ 
+          chatContext: wizardContext || chatContext,
+          targetLength
+        })
       });
       
       if (res.ok) {
@@ -578,17 +584,26 @@ export default function ProjectPage() {
                 <div className="mt-4 space-y-2">
                   {documents.map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded group">
-                      <div className="flex items-center">
+                      <div className="flex items-center flex-1">
                         <FileCheck className="mr-2 h-4 w-4 text-green-600" />
                         <span className="text-sm">{doc.filename}</span>
                       </div>
-                      <button
-                        onClick={() => deleteDocument(doc.id)}
-                        className="text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete document"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedDocument(doc)}
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                          title="View document"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteDocument(doc.id)}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete document"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -652,6 +667,48 @@ export default function ProjectPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* Generation Configuration */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Generation Settings</CardTitle>
+              <CardDescription>Configure how your {project?.project_type || 'document'} will be generated</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Target Document Length (pages)
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      value={targetLength}
+                      onChange={(e) => setTargetLength(parseInt(e.target.value))}
+                      className="flex-1"
+                    />
+                    <div className="w-20 text-center">
+                      <input
+                        type="number"
+                        min="5"
+                        max="50"
+                        value={targetLength}
+                        onChange={(e) => setTargetLength(parseInt(e.target.value) || 15)}
+                        className="w-full px-2 py-1 border rounded text-center"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Approximate length of the final document. AI will adjust content detail accordingly.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Generation Status */}
@@ -762,6 +819,14 @@ export default function ProjectPage() {
               setDraftData(null);
             }}
             onExport={handleDraftExport}
+          />
+        )}
+        
+        {/* Document Viewer Modal */}
+        {selectedDocument && (
+          <DocumentViewer
+            document={selectedDocument}
+            onClose={() => setSelectedDocument(null)}
           />
         )}
       </div>
