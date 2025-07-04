@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { id } = req.query;
-  const { questions, documents } = req.body;
+  const { questions, documents, includeCompanyKnowledge } = req.body;
 
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid project ID' });
@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log(`[Fill Answers] Processing ${questions.length} questions with ${documents.length} supporting documents`);
+    console.log(`[Fill Answers] Processing ${questions.length} questions with ${documents.length} documents`);
     
     // Get full document content for the supporting documents
     const docIds = documents.map((d: any) => d.id);
@@ -29,6 +29,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     const fullDocuments = documentsResult.rows;
     
+    // Get company knowledge if requested
+    let companyKnowledge = [];
+    if (includeCompanyKnowledge) {
+      const knowledgeResult = await query(
+        'SELECT * FROM company_knowledge ORDER BY uploaded_at DESC',
+        []
+      );
+      companyKnowledge = knowledgeResult.rows;
+      console.log(`[Fill Answers] Including ${companyKnowledge.length} company knowledge documents`);
+    }
+    
+    // Get company information
+    const companyInfoResult = await query(
+      'SELECT * FROM company_info ORDER BY updated_at DESC LIMIT 1',
+      []
+    );
+    const companyInfo = companyInfoResult.rows[0];
+    
+    // Combine all documents including company info
+    const allDocuments = [
+      // Add company info as a special document if it exists
+      ...(companyInfo ? [{
+        filename: 'Company Information',
+        content: JSON.stringify({
+          name: companyInfo.name,
+          description: companyInfo.description,
+          services: companyInfo.services,
+          address: companyInfo.address,
+          website: companyInfo.website,
+          contacts: companyInfo.contacts,
+          certifications: companyInfo.certifications,
+          differentiators: companyInfo.differentiators,
+          past_projects: companyInfo.past_projects
+        }, null, 2),
+        metadata: { type: 'company_info' }
+      }] : []),
+      ...fullDocuments.map(doc => ({
+        filename: doc.filename,
+        content: doc.extracted_text || doc.content || '',
+        metadata: doc.metadata
+      })),
+      ...companyKnowledge.map(kb => ({
+        filename: `${kb.filename} (Company Knowledge: ${kb.category})`,
+        content: kb.content || '',
+        metadata: kb.metadata
+      }))
+    ];
+    
     // Use AI to analyze documents and generate answers
     const aiService = new AIService();
     const filledAnswers = await aiService.generateAnswersFromDocuments({
@@ -36,11 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: q.id,
         text: q.text
       })),
-      documents: fullDocuments.map(doc => ({
-        filename: doc.filename,
-        content: doc.extracted_text || doc.content || '',
-        metadata: doc.metadata
-      }))
+      documents: allDocuments
     });
     
     // Update each question with its generated answer

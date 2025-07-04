@@ -332,28 +332,28 @@ export default function ProjectPage() {
   const autoFillAnswers = async () => {
     setIsAutoFilling(true);
     try {
-      // This will be a new endpoint that analyzes supporting docs and fills answers
+      // Use all documents (including RFI/RFP) for answer generation
       const res = await fetch(`/api/projects/${id}/fill-answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questions: questions.map(q => ({ id: q.id, text: q.question_text })),
-          documents: documents.filter(doc => 
-            !doc.filename?.toLowerCase().includes('rfi') && 
-            !doc.filename?.toLowerCase().includes('rfp')
-          )
+          documents: documents, // Send all documents
+          includeCompanyKnowledge: true // Flag to include company knowledge
         }),
       });
 
       if (res.ok) {
+        const result = await res.json();
         await fetchQuestions();
-        alert('Answers have been auto-filled based on your supporting documents.');
+        alert(`Successfully regenerated answers for ${result.answersUpdated} questions using all available documents and company knowledge.`);
       } else {
-        alert('Failed to auto-fill answers. Please try again.');
+        const error = await res.json();
+        alert(`Failed to regenerate answers: ${error.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to auto-fill answers:', error);
-      alert('Failed to auto-fill answers. Please check your connection and try again.');
+      alert('Failed to regenerate answers. Please check your connection and try again.');
     } finally {
       setIsAutoFilling(false);
     }
@@ -855,28 +855,29 @@ export default function ProjectPage() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {documents.filter(doc => 
-                      !doc.filename?.toLowerCase().includes('rfi') && 
-                      !doc.filename?.toLowerCase().includes('rfp')
-                    ).length > 0 && (
-                      <Button
-                        variant="outline"
-                        onClick={autoFillAnswers}
-                        disabled={isAutoFilling}
-                      >
-                        {isAutoFilling ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Auto-filling...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Auto-fill from Supporting Docs
-                          </>
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      onClick={autoFillAnswers}
+                      disabled={isAutoFilling}
+                    >
+                      {isAutoFilling ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Regenerating Answers...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          {documents.filter(doc => 
+                            !doc.filename?.toLowerCase().includes('rfi') && 
+                            !doc.filename?.toLowerCase().includes('rfp')
+                          ).length > 0 
+                            ? 'Regenerate Answers from All Docs' 
+                            : 'Regenerate Answers from Company Knowledge'
+                          }
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -974,22 +975,40 @@ export default function ProjectPage() {
                   ))}
                 </div>
                 
-                {/* Info about supporting documents */}
-                {documents.filter(doc => 
-                  !doc.filename?.toLowerCase().includes('rfi') && 
-                  !doc.filename?.toLowerCase().includes('rfp')
-                ).length === 0 && (
-                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+                {/* Info about answer generation */}
+                <div className="mt-4 space-y-3">
+                  {documents.filter(doc => 
+                    !doc.filename?.toLowerCase().includes('rfi') && 
+                    !doc.filename?.toLowerCase().includes('rfp')
+                  ).length === 0 && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
+                      <div className="flex items-start">
+                        <AlertCircle className="h-5 w-5 text-amber-600 mr-2 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-amber-800">
+                            <strong>Tip:</strong> Upload supporting documents (company info, case studies, certifications) for more comprehensive answers.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
                     <div className="flex items-start">
-                      <AlertCircle className="h-5 w-5 text-amber-600 mr-2 mt-0.5" />
+                      <Sparkles className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
                       <div>
-                        <p className="text-sm text-amber-800">
-                          <strong>Tip:</strong> Upload supporting documents (company info, case studies, certifications) to auto-fill answers based on your content.
+                        <p className="text-sm text-blue-800">
+                          <strong>Answer Generation:</strong> Click "Regenerate Answers" anytime to update answers based on:
                         </p>
+                        <ul className="text-sm text-blue-700 mt-1 ml-4 list-disc">
+                          <li>Your company information and settings</li>
+                          <li>Company knowledge base documents</li>
+                          <li>All uploaded documents (including the RFI itself)</li>
+                        </ul>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </div>

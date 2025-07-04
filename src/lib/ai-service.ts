@@ -1184,9 +1184,14 @@ Make questions specific to the context and avoid generic questions.`;
         `${idx + 1}. ${q.text} (ID: ${q.id})`
       ).join('\n');
       
-      const prompt = `You are analyzing supporting documents to answer RFI questions. 
-Based on the following documents, provide concise, accurate answers to each question.
-If the documents don't contain relevant information for a question, indicate that clearly.
+      const prompt = `You are analyzing company documents to answer RFI questions as a vendor responding to a client's request. 
+Based on the following documents, provide comprehensive, accurate answers to each question.
+
+IMPORTANT: 
+- The "Company Information" document contains critical details about our company that should be used prominently
+- Reference specific company capabilities, certifications, and differentiators when relevant
+- Use concrete examples from past projects when available
+- If documents don't contain relevant information for a question, clearly state what information is missing
 
 SUPPORTING DOCUMENTS:
 ${documentContext}
@@ -1196,10 +1201,10 @@ ${questionsList}
 
 For each question, provide an answer in the following format:
 QUESTION_ID: [the ID from above]
-ANSWER: [your detailed answer based on the documents]
+ANSWER: [your detailed answer based on the documents, emphasizing company strengths and capabilities]
 ---
 
-Be specific and reference information from the documents where relevant.`;
+Be specific, professional, and reference information from the documents where relevant. Prioritize company information and capabilities in your responses.`;
 
       const response = await anthropic.messages.create({
         model: 'claude-3-5-sonnet-20241022',
