@@ -173,10 +173,7 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    console.log('Version History clicked, current state:', showVersionHistory);
-                    setShowVersionHistory(!showVersionHistory);
-                  }}
+                  onClick={() => setShowVersionHistory(!showVersionHistory)}
                 >
                   <History className="h-4 w-4 mr-2" />
                   Version History

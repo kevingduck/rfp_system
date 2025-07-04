@@ -12,7 +12,7 @@ import {
   Calendar,
   Diff
 } from 'lucide-react';
-import { diffWords } from 'diff';
+import { diffLines, diffWords } from 'diff';
 
 interface DraftRevision {
   id: string;
@@ -39,22 +39,16 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
   const [showDiff, setShowDiff] = useState(false);
 
   useEffect(() => {
-    console.log('VersionHistory mounted with projectId:', projectId);
     fetchRevisions();
   }, [projectId]);
 
   const fetchRevisions = async () => {
-    console.log('Fetching revisions for project:', projectId);
     setLoading(true);
     try {
       const response = await fetch(`/api/projects/${projectId}/draft/revisions`);
-      console.log('Revisions response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('Revisions data:', data);
         setRevisions(data);
-      } else {
-        console.error('Failed to fetch revisions, status:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch revisions:', error);
@@ -70,40 +64,61 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
   };
 
   const renderDiff = (oldText: string, newText: string) => {
-    const diff = diffWords(oldText || '', newText || '');
+    // Use line diff for better visibility of changes
+    const diff = diffLines(oldText || '', newText || '');
     
     return (
-      <div className="text-sm font-mono bg-gray-50 p-3 rounded-md overflow-x-auto">
+      <div className="text-sm bg-gray-50 rounded-md overflow-x-auto">
         {diff.map((part, index) => {
           if (part.added) {
-            return <span key={index} className="bg-green-200 text-green-900">{part.value}</span>;
+            return (
+              <div key={index} className="bg-green-100 border-l-4 border-green-500 p-2 my-1">
+                <span className="text-green-700 font-semibold text-xs">+ Added:</span>
+                <pre className="text-green-900 whitespace-pre-wrap mt-1">{part.value}</pre>
+              </div>
+            );
           } else if (part.removed) {
-            return <span key={index} className="bg-red-200 text-red-900 line-through">{part.value}</span>;
+            return (
+              <div key={index} className="bg-red-100 border-l-4 border-red-500 p-2 my-1">
+                <span className="text-red-700 font-semibold text-xs">- Removed:</span>
+                <pre className="text-red-900 whitespace-pre-wrap mt-1 line-through opacity-75">{part.value}</pre>
+              </div>
+            );
           }
-          return <span key={index}>{part.value}</span>;
+          return (
+            <div key={index} className="p-2 my-1">
+              <pre className="text-gray-700 whitespace-pre-wrap">{part.value}</pre>
+            </div>
+          );
         })}
       </div>
     );
   };
 
-  const getChangedSections = (revision: DraftRevision): string[] => {
+  const getChangedSections = (revision: DraftRevision, previousRevision?: DraftRevision): string[] => {
     const changedSections: string[] = [];
+    const compareWith = previousRevision?.content || {};
     
-    // Compare with current content
-    Object.keys(currentContent).forEach(key => {
-      if (revision.content[key] !== currentContent[key]) {
+    // Compare with previous version (or empty if first version)
+    Object.keys(revision.content).forEach(key => {
+      if (revision.content[key] !== compareWith[key]) {
         changedSections.push(key);
       }
     });
     
-    // Check for sections that exist in revision but not in current
-    Object.keys(revision.content).forEach(key => {
-      if (!currentContent[key] && !changedSections.includes(key)) {
+    // Check for sections that were removed
+    Object.keys(compareWith).forEach(key => {
+      if (!revision.content[key] && !changedSections.includes(key)) {
         changedSections.push(key);
       }
     });
     
     return changedSections;
+  };
+
+  const getPreviousRevision = (currentIndex: number): DraftRevision | undefined => {
+    // Since revisions are sorted by version_number DESC, the previous version is at index + 1
+    return revisions[currentIndex + 1];
   };
 
   if (loading) {
@@ -140,15 +155,16 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
           Current version: {Math.max(...revisions.map(r => r.versionNumber)) + 1}
         </div>
         
-        {revisions.map((revision) => {
-          const changedSections = getChangedSections(revision);
+        {revisions.map((revision, index) => {
+          const previousRevision = getPreviousRevision(index);
+          const changedSections = getChangedSections(revision, previousRevision);
           const isExpanded = expandedRevision === revision.id;
-          const isComparing = comparingRevision === revision.id;
+          const isLatest = index === 0;
           
           return (
             <div
               key={revision.id}
-              className={`border rounded-lg ${isComparing ? 'border-blue-500' : 'border-gray-200'}`}
+              className="border rounded-lg border-gray-200 hover:border-gray-300 transition-colors"
             >
               <div className="p-3">
                 <div className="flex justify-between items-start">
@@ -156,9 +172,14 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
                     <div className="flex items-center gap-2 mb-1">
                       <FileText className="h-4 w-4 text-gray-400" />
                       <span className="font-semibold text-sm">Version {revision.versionNumber}</span>
+                      {isLatest && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                          Current
+                        </span>
+                      )}
                       {changedSections.length > 0 && (
                         <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                          {changedSections.length} changes
+                          {changedSections.length} {changedSections.length === 1 ? 'change' : 'changes'}
                         </span>
                       )}
                     </div>
@@ -178,17 +199,6 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
                   </div>
                   
                   <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setComparingRevision(isComparing ? null : revision.id);
-                        setShowDiff(true);
-                      }}
-                      title="Compare with current"
-                    >
-                      <Diff className="h-3 w-3" />
-                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -213,9 +223,44 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
                 </div>
                 
                 {changedSections.length > 0 && !isExpanded && (
-                  <div className="mt-2 text-xs text-gray-600">
-                    Changed sections: {changedSections.slice(0, 3).map(s => getSectionTitle(s)).join(', ')}
-                    {changedSections.length > 3 && ` +${changedSections.length - 3} more`}
+                  <div className="mt-2">
+                    <div className="text-xs text-gray-600 mb-2">
+                      Changed sections: {changedSections.slice(0, 3).map(s => getSectionTitle(s)).join(', ')}
+                      {changedSections.length > 3 && ` +${changedSections.length - 3} more`}
+                    </div>
+                    {/* Show a preview of the first change */}
+                    {changedSections.length > 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-1">
+                        <p className="text-xs font-semibold text-yellow-800 mb-1">
+                          Preview: {getSectionTitle(changedSections[0])}
+                        </p>
+                        <div className="text-xs">
+                          {(() => {
+                            const section = changedSections[0];
+                            const prev = previousRevision?.content[section] || '';
+                            const curr = revision.content[section] || '';
+                            const diff = diffWords(prev, curr);
+                            let changeCount = 0;
+                            const maxChanges = 3;
+                            
+                            return (
+                              <div className="line-clamp-3">
+                                {diff.map((part, i) => {
+                                  if (part.added && changeCount < maxChanges) {
+                                    changeCount++;
+                                    return <span key={i} className="bg-green-200 px-0.5 rounded">{part.value}</span>;
+                                  } else if (part.removed && changeCount < maxChanges) {
+                                    changeCount++;
+                                    return <span key={i} className="bg-red-200 px-0.5 rounded line-through">{part.value}</span>;
+                                  }
+                                  return <span key={i}>{part.value.length > 50 ? part.value.substring(0, 50) + '...' : part.value}</span>;
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -223,22 +268,55 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
               {isExpanded && (
                 <div className="border-t px-3 py-3 bg-gray-50">
                   <div className="space-y-3">
-                    {changedSections.map(section => (
-                      <div key={section} className="bg-white rounded p-3 border">
-                        <h4 className="font-semibold text-sm mb-2">{getSectionTitle(section)}</h4>
-                        
-                        {isComparing && showDiff ? (
+                    {changedSections.map(section => {
+                      const previousContent = previousRevision?.content[section] || '';
+                      const currentSectionContent = revision.content[section] || '';
+                      const wasRemoved = !revision.content[section] && previousRevision?.content[section];
+                      
+                      return (
+                        <div key={section} className="bg-white rounded p-3 border">
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-semibold text-sm">{getSectionTitle(section)}</h4>
+                            {wasRemoved && (
+                              <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                                Removed
+                              </span>
+                            )}
+                          </div>
+                          
                           <div>
-                            <p className="text-xs text-gray-500 mb-1">Changes from version {revision.versionNumber} to current:</p>
-                            {renderDiff(revision.content[section], currentContent[section])}
+                            {previousContent && currentSectionContent && (
+                              <>
+                                <p className="text-xs text-gray-500 mb-2">
+                                  Changes in version {revision.versionNumber}:
+                                </p>
+                                {renderDiff(previousContent, currentSectionContent)}
+                              </>
+                            )}
+                            {!previousContent && currentSectionContent && (
+                              <>
+                                <p className="text-xs text-gray-500 mb-2">
+                                  New in version {revision.versionNumber}:
+                                </p>
+                                <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
+                                  <pre className="text-sm text-gray-700 whitespace-pre-wrap">{currentSectionContent}</pre>
+                                </div>
+                              </>
+                            )}
+                            {wasRemoved && (
+                              <>
+                                <p className="text-xs text-gray-500 mb-2">
+                                  Removed in version {revision.versionNumber}:
+                                </p>
+                                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded">
+                                  <pre className="text-sm text-gray-500 whitespace-pre-wrap line-through">{previousContent}</pre>
+                                </div>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <div className="text-sm text-gray-700 max-h-32 overflow-y-auto">
-                            {revision.content[section] || <span className="text-gray-400 italic">Section removed</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                     
                     {changedSections.length === 0 && (
                       <p className="text-sm text-gray-500 italic">No changes in this version</p>
