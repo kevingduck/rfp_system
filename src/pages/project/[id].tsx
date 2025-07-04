@@ -112,23 +112,21 @@ export default function ProjectPage() {
         // Ensure data is an array
         const docs = Array.isArray(data) ? data : [];
         
-        // Find the main RFI/RFP document
-        const rfiDoc = docs.find(doc => 
-          doc.filename?.toLowerCase().includes('rfi') || 
-          doc.filename?.toLowerCase().includes('rfp')
-        );
+        // Find the main RFI/RFP document by is_main_document flag
+        const mainDoc = docs.find(doc => doc.is_main_document === true);
         
-        if (rfiDoc) {
-          setMainRFIDocument(rfiDoc);
+        if (mainDoc) {
+          setMainRFIDocument(mainDoc);
           setHasRFIDocument(true);
           // Set other documents (supporting docs)
-          setDocuments(docs.filter(doc => doc.id !== rfiDoc.id));
+          setDocuments(docs.filter(doc => doc.id !== mainDoc.id));
           
-          // If we have an RFI document and haven't extracted questions yet, do it automatically
+          // If we have a main document and haven't extracted questions yet, do it automatically
           if (docs.length === 1 && questions.length === 0) {
             await extractQuestions();
           }
         } else {
+          // No main document set - show all documents
           setDocuments(docs);
           setHasRFIDocument(false);
           setMainRFIDocument(null);
@@ -231,6 +229,42 @@ export default function ProjectPage() {
       }
     } catch (error) {
       console.error('Failed to delete document:', error);
+    }
+  };
+
+  const setMainDocument = async (documentId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/documents/${documentId}/set-main`, {
+        method: 'PUT'
+      });
+      
+      if (res.ok) {
+        await fetchDocuments();
+        // Reset questions if we change the main document
+        setQuestions([]);
+        setQuestionsExtracted(false);
+      }
+    } catch (error) {
+      console.error('Failed to set main document:', error);
+    }
+  };
+
+  const unsetMainDocument = async () => {
+    try {
+      const res = await fetch(`/api/projects/${id}/documents/unset-main`, {
+        method: 'PUT'
+      });
+      
+      if (res.ok) {
+        setMainRFIDocument(null);
+        setHasRFIDocument(false);
+        await fetchDocuments();
+        // Reset questions since we no longer have a main document
+        setQuestions([]);
+        setQuestionsExtracted(false);
+      }
+    } catch (error) {
+      console.error('Failed to unset main document:', error);
     }
   };
 
@@ -712,6 +746,11 @@ export default function ProjectPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 {project ? `${project.project_type} Project: ${project.name}` : 'Loading...'}
               </h1>
+              {project?.organization_name && (
+                <p className="text-lg text-gray-700 mb-1">
+                  Client: {project.organization_name}
+                </p>
+              )}
               <p className="text-gray-600">
                 Let's get started creating your {project?.project_type}
               </p>
@@ -845,6 +884,11 @@ export default function ProjectPage() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
                   {project ? `${project.project_type} Project: ${project.name}` : 'Loading...'}
                 </h1>
+                {project?.organization_name && (
+                  <p className="text-lg text-gray-700 mb-1">
+                    Client: {project.organization_name}
+                  </p>
+                )}
                 <p className="text-gray-600">
                   {project?.project_type === 'RFI' 
                     ? 'Prepare your vendor response to the RFI request'
@@ -965,6 +1009,18 @@ export default function ProjectPage() {
                       >
                         <Eye className="h-5 w-5" />
                       </button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm('This will replace the main document. Questions will need to be re-extracted. Continue?')) {
+                            unsetMainDocument();
+                          }
+                        }}
+                        className="text-purple-600 hover:text-purple-700 border-purple-300 hover:border-purple-400"
+                      >
+                        Replace
+                      </Button>
                     </div>
                   </div>
                   
@@ -1059,6 +1115,21 @@ export default function ProjectPage() {
                         <span className="text-sm">{doc.filename}</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {!mainRFIDocument && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (confirm(`Set "${doc.filename}" as the main ${project?.project_type} document?`)) {
+                                setMainDocument(doc.id);
+                              }
+                            }}
+                            className="text-purple-600 hover:text-purple-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title={`Set as main ${project?.project_type} document`}
+                          >
+                            Set as Main
+                          </Button>
+                        )}
                         <button
                           onClick={() => setSelectedDocument(doc)}
                           className="text-gray-400 hover:text-blue-600 transition-colors"
@@ -1440,7 +1511,7 @@ export default function ProjectPage() {
         <EnhancedChatAssistant
           projectId={id as string}
           projectType={project?.project_type || 'RFP'}
-          documents={documents}
+          documents={[...documents, ...(mainRFIDocument ? [mainRFIDocument] : [])]}
           questions={questions}
           onUpdateQuestions={setQuestions}
           onUploadDocument={handleChatFileUpload}
@@ -1449,6 +1520,8 @@ export default function ProjectPage() {
           onExtractQuestions={extractQuestions}
           onGenerateDraft={handleGenerateDraft}
           onRefreshQuestions={fetchQuestions}
+          onSetMainDocument={setMainDocument}
+          mainDocument={mainRFIDocument}
           currentDraft={draftData}
         />
       </div>

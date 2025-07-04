@@ -59,6 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             metadata,
             summary_cache: doc.summary_cache, // Include cached summary
             summary_generated_at: doc.summary_generated_at,
+            is_main_document: doc.is_main_document || false,
             created_at: doc.uploaded_at || doc.created_at
           };
         });

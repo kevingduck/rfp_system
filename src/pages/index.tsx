@@ -225,13 +225,14 @@ export default function Home() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Organization (Optional)</label>
+                    <label className="block text-sm font-medium mb-1">Client Organization (Optional)</label>
+                    <p className="text-xs text-gray-600 mb-1">The organization that sent you this {projectType}</p>
                     <input
                       type="text"
                       value={organizationName}
                       onChange={(e) => setOrganizationName(e.target.value)}
                       className="w-full px-3 py-2 border rounded-md"
-                      placeholder="e.g., State of Indiana"
+                      placeholder="e.g., State of Indiana, Acme Corp"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -255,7 +256,7 @@ export default function Home() {
                     {project.name}
                   </CardTitle>
                   {project.organization_name && (
-                    <CardDescription>{project.organization_name}</CardDescription>
+                    <CardDescription>Client: {project.organization_name}</CardDescription>
                   )}
                 </CardHeader>
               </Link>

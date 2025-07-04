@@ -25,22 +25,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid RFI project' });
     }
     
-    // Get uploaded documents - find the main RFI/RFP document
-    const documentsResult = await query(
-      'SELECT * FROM documents WHERE project_id = $1 ORDER BY uploaded_at ASC',
+    // Get the main document
+    const mainDocResult = await query(
+      'SELECT * FROM documents WHERE project_id = $1 AND is_main_document = TRUE',
       [id]
     );
-    const documents = documentsResult.rows;
+    let mainDocument = mainDocResult.rows[0];
     
-    if (documents.length === 0) {
-      return res.status(400).json({ error: 'No documents uploaded. Please upload the RFI/RFP document first.' });
+    // If no main document is set, try to find one or use the first document
+    if (!mainDocument) {
+      const allDocsResult = await query(
+        'SELECT * FROM documents WHERE project_id = $1 ORDER BY uploaded_at ASC',
+        [id]
+      );
+      const documents = allDocsResult.rows;
+      
+      if (documents.length === 0) {
+        return res.status(400).json({ error: 'No documents uploaded. Please upload the RFI/RFP document first.' });
+      }
+      
+      // Find document with RFI/RFP in filename or use first
+      mainDocument = documents.find(doc => 
+        doc.filename?.toLowerCase().includes('rfi') || 
+        doc.filename?.toLowerCase().includes('rfp')
+      ) || documents[0];
+      
+      // Set it as main for future use
+      await query(
+        'UPDATE documents SET is_main_document = TRUE WHERE id = $1',
+        [mainDocument.id]
+      );
     }
-    
-    // Find the main RFI/RFP document (first uploaded or contains RFI/RFP in filename)
-    let mainDocument = documents.find(doc => 
-      doc.filename?.toLowerCase().includes('rfi') || 
-      doc.filename?.toLowerCase().includes('rfp')
-    ) || documents[0]; // Default to first document if no RFI/RFP in filename
     
     console.log(`[Smart Questions] Processing main document: ${mainDocument.filename}`);
     

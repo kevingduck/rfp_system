@@ -67,6 +67,8 @@ interface EnhancedChatAssistantProps {
   onExtractQuestions: () => Promise<void>;
   onGenerateDraft: () => Promise<void>;
   onRefreshQuestions?: () => Promise<void>;
+  onSetMainDocument?: (documentId: string) => Promise<void>;
+  mainDocument?: any;
   currentDraft?: any;
 }
 
@@ -82,6 +84,8 @@ export function EnhancedChatAssistant({
   onExtractQuestions,
   onGenerateDraft,
   onRefreshQuestions,
+  onSetMainDocument,
+  mainDocument,
   currentDraft
 }: EnhancedChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -221,6 +225,16 @@ Type "help" for commands or "status" to see project overview.`,
       return handleShowQuestion(message);
     }
     
+    // Set main document
+    if ((message.includes('set') || message.includes('change')) && message.includes('main') && message.includes('document')) {
+      return handleSetMainDocumentIntent();
+    }
+    
+    // Show main document
+    if (message.includes('main') && message.includes('document')) {
+      return handleShowMainDocument();
+    }
+    
     return handleGeneralQuery(message);
   };
 
@@ -255,8 +269,10 @@ Type "help" for commands or "status" to see project overview.`,
 
 **Project:** ${projectType} - ${questions.length > 0 ? 'In Progress' : 'Getting Started'}
 
+**Main ${projectType} Document:** ${mainDocument ? `✓ ${mainDocument.filename}` : '❌ Not set'}
+
 **Documents:** ${documents.length} uploaded
-${documents.slice(0, 3).map((doc, i) => `  ${i + 1}. ${doc.filename}`).join('\n')}
+${documents.slice(0, 3).map((doc, i) => `  ${i + 1}. ${doc.filename}${doc.is_main_document ? ' (main)' : ''}`).join('\n')}
 ${documents.length > 3 ? `  ... and ${documents.length - 3} more` : ''}
 
 **Questions:** ${questions.length} total
@@ -266,16 +282,27 @@ ${documents.length > 3 ? `  ... and ${documents.length - 3} more` : ''}
 **Draft Status:** ${currentDraft ? '✓ Generated' : '❌ Not generated yet'}
 
 **Next Steps:**
-${questions.length === 0 ? '• Extract questions from your RFI/RFP document' : ''}
+${!mainDocument ? '• Set a main document to extract questions from' : ''}
+${mainDocument && questions.length === 0 ? '• Extract questions from your main document' : ''}
 ${unansweredQuestions > 0 ? '• Generate answers for remaining questions' : ''}
 ${questions.length > 0 && !currentDraft ? '• Generate the final draft document' : ''}
 ${currentDraft ? '• Review and export your draft' : ''}`;
 
-    return createBotMessage(content, [
-      { label: 'Extract Questions', value: 'extract questions' },
-      { label: 'Generate Answers', value: 'generate answers' },
-      { label: 'Generate Draft', value: 'generate draft' }
-    ]);
+    const quickActions = [];
+    if (!mainDocument && documents.length > 0) {
+      quickActions.push({ label: 'Set Main Document', value: 'set main document' });
+    }
+    if (mainDocument && questions.length === 0) {
+      quickActions.push({ label: 'Extract Questions', value: 'extract questions' });
+    }
+    if (questions.length > 0 && unansweredQuestions > 0) {
+      quickActions.push({ label: 'Generate Answers', value: 'generate answers' });
+    }
+    if (questions.length > 0) {
+      quickActions.push({ label: 'Generate Draft', value: 'generate draft' });
+    }
+
+    return createBotMessage(content, quickActions);
   };
 
   const handleListDocuments = () => {
@@ -545,36 +572,47 @@ ${documents.map((doc, i) => `${i + 1}. ${doc.filename}`).join('\n')}`;
   };
 
   const handleDocumentSelection = async (message: string) => {
-    let documentToDelete = null;
+    const { action } = conversationContext.data || {};
+    let documentToSelect = null;
     
     // Try to match by number first
     const numberMatch = message.match(/(\d+)/);
     if (numberMatch) {
       const docNum = parseInt(numberMatch[1]) - 1;
       if (docNum >= 0 && docNum < documents.length) {
-        documentToDelete = documents[docNum];
+        documentToSelect = documents[docNum];
       }
     }
     
     // Try to match by filename
-    if (!documentToDelete) {
-      documentToDelete = documents.find(doc => 
+    if (!documentToSelect) {
+      documentToSelect = documents.find(doc => 
         doc.filename.toLowerCase().includes(message.toLowerCase())
       );
     }
     
-    if (!documentToDelete) {
+    if (!documentToSelect) {
       return createErrorMessage('Document not found. Please provide a valid number or filename.');
     }
     
     try {
       setIsProcessing(true);
-      await onDeleteDocument(documentToDelete.id);
       
-      resetConversation();
-      return createSystemMessage(`✓ Document "${documentToDelete.filename}" deleted successfully!`);
+      if (action === 'set_main') {
+        // Set as main document
+        if (onSetMainDocument) {
+          await onSetMainDocument(documentToSelect.id);
+          resetConversation();
+          return createSystemMessage(`✓ "${documentToSelect.filename}" is now the main ${projectType} document. Please extract questions from it.`);
+        }
+      } else {
+        // Delete document
+        await onDeleteDocument(documentToSelect.id);
+        resetConversation();
+        return createSystemMessage(`✓ Document "${documentToSelect.filename}" deleted successfully!`);
+      }
     } catch (error) {
-      return createErrorMessage('Failed to delete document. Please try again.');
+      return createErrorMessage(action === 'set_main' ? 'Failed to set main document.' : 'Failed to delete document.');
     } finally {
       setIsProcessing(false);
     }
@@ -700,9 +738,10 @@ Shall I proceed?`,
 • \`status\` - Show project overview
 • \`list documents\` - Show all uploaded documents
 • \`show question [#]\` - Display specific question
+• \`main document\` - Show current main ${projectType} document
 
 **❓ Question Management**
-• \`extract questions\` - Pull questions from RFI/RFP
+• \`extract questions\` - Pull questions from main document
 • \`add question\` - Add a new question
 • \`edit question [#]\` - Modify question text
 • \`delete question [#]\` - Remove a question
@@ -710,6 +749,7 @@ Shall I proceed?`,
 **📄 Document Management**
 • \`upload document\` - Add supporting documents
 • \`delete document [#/name]\` - Remove a document
+• \`set main document\` - Choose which document to extract questions from
 
 **✍️ Generation**
 • \`generate answers\` - Auto-fill all answers
@@ -723,6 +763,55 @@ Shall I proceed?`,
       { label: 'Show Status', value: 'status' },
       { label: 'List Documents', value: 'list documents' }
     ]);
+  };
+
+  const handleShowMainDocument = () => {
+    if (!mainDocument) {
+      return createBotMessage(`No main ${projectType} document is currently set. Would you like to set one?`, [
+        { label: 'Set Main Document', value: 'set main document' }
+      ]);
+    }
+
+    const content = `📑 **Main ${projectType} Document**
+
+**Filename:** ${mainDocument.filename}
+**Type:** ${mainDocument.file_type || 'Document'}
+**Uploaded:** ${new Date(mainDocument.uploadedAt || mainDocument.uploaded_at).toLocaleDateString()}
+${mainDocument.metadata?.summary_cache ? '✓ Summarized' : '⏳ Processing'}
+
+This is the primary document we're responding to. All questions should be extracted from this document.`;
+
+    return createBotMessage(content, [
+      { label: 'Extract Questions', value: 'extract questions' },
+      { label: 'Change Main Document', value: 'set main document' }
+    ]);
+  };
+
+  const handleSetMainDocumentIntent = () => {
+    if (!onSetMainDocument) {
+      return createErrorMessage('Main document management is not available.');
+    }
+
+    if (documents.length === 0) {
+      return createBotMessage('No documents available. Upload some documents first.', [
+        { label: 'Upload Document', value: 'upload document' }
+      ]);
+    }
+
+    setConversationContext({ 
+      state: 'awaiting_document_selection',
+      data: { action: 'set_main' }
+    });
+
+    const content = `Which document should be the main ${projectType} document? Reply with the number or filename.
+
+${documents.map((doc, i) => 
+  `${i + 1}. ${doc.filename}${doc.is_main_document ? ' (current main)' : ''}`
+).join('\n')}
+
+**Note:** Setting a new main document will require re-extracting questions.`;
+
+    return createBotMessage(content);
   };
 
   const handleGeneralQuery = (message: string) => {

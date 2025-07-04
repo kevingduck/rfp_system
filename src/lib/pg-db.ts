@@ -145,6 +145,7 @@ export async function initializeDatabase() {
         metadata TEXT,
         summary_cache TEXT,
         summary_generated_at TIMESTAMP,
+        is_main_document BOOLEAN DEFAULT FALSE,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
@@ -226,6 +227,7 @@ export async function initializeDatabase() {
 
     // Create indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_main ON documents(project_id, is_main_document) WHERE is_main_document = TRUE`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_web_sources_project ON web_sources(project_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_rfi_questions_project ON rfi_questions(project_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_rfi_questions_position ON rfi_questions(project_id, position)`);
@@ -243,6 +245,24 @@ export async function initializeDatabase() {
       $$ language 'plpgsql';
     `);
 
+    // Create function to enforce single main document
+    await client.query(`
+      CREATE OR REPLACE FUNCTION enforce_single_main_document()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF NEW.is_main_document = TRUE THEN
+          -- Reset any existing main document for this project
+          UPDATE documents 
+          SET is_main_document = FALSE 
+          WHERE project_id = NEW.project_id 
+            AND id != NEW.id 
+            AND is_main_document = TRUE;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
     // Create triggers
     await client.query(`
       DROP TRIGGER IF EXISTS update_company_info_timestamp ON company_info;
@@ -256,6 +276,15 @@ export async function initializeDatabase() {
       CREATE TRIGGER update_drafts_timestamp 
       BEFORE UPDATE ON drafts 
       FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+    // Create trigger to enforce single main document
+    await client.query(`
+      DROP TRIGGER IF EXISTS enforce_single_main_document_trigger ON documents;
+      CREATE TRIGGER enforce_single_main_document_trigger
+      BEFORE INSERT OR UPDATE ON documents
+      FOR EACH ROW
+      EXECUTE FUNCTION enforce_single_main_document();
     `);
 
     console.log('✓ PostgreSQL database initialized successfully');

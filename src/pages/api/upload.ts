@@ -53,9 +53,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsedDoc = await parseDocument(uploadedFile.filepath);
     const keyInfo = extractKeyInformation(parsedDoc.text);
 
+    // Check if we should set this as main document
+    const existingDocsResult = await query(
+      'SELECT COUNT(*) as count FROM documents WHERE project_id = $1',
+      [projectId]
+    );
+    const existingDocsCount = parseInt(existingDocsResult.rows[0].count);
+    
+    // Check if there's already a main document
+    const mainDocResult = await query(
+      'SELECT COUNT(*) as count FROM documents WHERE project_id = $1 AND is_main_document = TRUE',
+      [projectId]
+    );
+    const hasMainDoc = parseInt(mainDocResult.rows[0].count) > 0;
+    
+    // Auto-set as main if:
+    // 1. It's the first document, OR
+    // 2. No main document exists AND filename contains 'rfi' or 'rfp'
+    const filename = (uploadedFile.originalFilename || '').toLowerCase();
+    const shouldBeMain = existingDocsCount === 0 || 
+                        (!hasMainDoc && (filename.includes('rfi') || filename.includes('rfp')));
+
     await query(
-      `INSERT INTO documents (id, project_id, filename, file_type, filepath, file_path, mimetype, size, content, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO documents (id, project_id, filename, file_type, filepath, file_path, mimetype, size, content, metadata, is_main_document)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         documentId,
         projectId,
@@ -66,7 +87,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         uploadedFile.mimetype,
         uploadedFile.size,
         JSON.stringify({ text: parsedDoc.text, ...keyInfo }),
-        JSON.stringify(parsedDoc.metadata)
+        JSON.stringify(parsedDoc.metadata),
+        shouldBeMain
       ]
     );
 

@@ -146,7 +146,7 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
                   {draft.projectType} Draft Preview
                 </CardTitle>
                 <p className="text-sm text-gray-600">
-                  {draft.projectName} for {draft.organizationName}
+                  {draft.projectName}{draft.organizationName && ` • Client: ${draft.organizationName}`}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   Generated: {new Date(draft.generatedAt).toLocaleString()}
