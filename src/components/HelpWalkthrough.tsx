@@ -161,12 +161,6 @@ export function HelpWalkthrough({ isOpen, onClose, startTab = 'overview' }: Help
       location: 'Project page → Add Web Source'
     },
     {
-      title: 'Chat Assistant',
-      description: 'Get AI-powered help with writing specific sections, understanding requirements, or improving your responses.',
-      icon: <MessageSquare className="h-6 w-6 text-orange-500" />,
-      location: 'Bottom right corner of project page'
-    },
-    {
       title: 'Version History',
       description: 'Track all changes to your document with detailed version history showing exactly what changed between versions.',
       icon: <CheckCircle className="h-6 w-6 text-indigo-500" />,
@@ -182,10 +176,6 @@ export function HelpWalkthrough({ isOpen, onClose, startTab = 'overview' }: Help
     {
       title: 'Use Descriptive File Names',
       tip: 'Name your uploaded files clearly (e.g., "ISO-9001-Certification-2024.pdf") to make them easier to identify in the sources list.'
-    },
-    {
-      title: 'Leverage the Chat Assistant',
-      tip: 'Ask the chat assistant specific questions like "How can I make this answer more compelling?" or "What technical details should I include?"'
     },
     {
       title: 'Review AI Summaries',
@@ -409,7 +399,7 @@ export function HelpWalkthrough({ isOpen, onClose, startTab = 'overview' }: Help
           <div className="border-t p-4 bg-gray-50">
             <div className="flex justify-between items-center">
               <p className="text-sm text-gray-600">
-                Need more help? Use the chat assistant for specific questions.
+                Need more help? Check the documentation or contact support.
               </p>
               <Button
                 variant="default"
