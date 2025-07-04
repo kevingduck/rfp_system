@@ -118,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           content: kbContent,
           metadata: kb.metadata
         };
-      }))
+      })
     ];
     
     // Use AI to analyze documents and generate answers
