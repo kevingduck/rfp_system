@@ -23,14 +23,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     case 'PUT':
       try {
-        const { question_text, question_type, required, category } = req.body;
+        const { question_text, question_type, required, category, answer } = req.body;
 
-        await query(
-          `UPDATE rfi_questions 
-           SET question_text = $1, question_type = $2, required = $3, category = $4
-           WHERE id = $5 AND project_id = $6`,
-          [question_text, question_type, required, category, questionId, id]
-        );
+        // If only answer is provided, update just the answer
+        if (answer !== undefined && !question_text) {
+          await query(
+            `UPDATE rfi_questions 
+             SET answer = $1
+             WHERE id = $2 AND project_id = $3`,
+            [answer, questionId, id]
+          );
+        } else {
+          // Update all fields
+          await query(
+            `UPDATE rfi_questions 
+             SET question_text = COALESCE($1, question_text), 
+                 question_type = COALESCE($2, question_type), 
+                 required = COALESCE($3, required), 
+                 category = COALESCE($4, category),
+                 answer = COALESCE($5, answer)
+             WHERE id = $6 AND project_id = $7`,
+            [question_text, question_type, required, category, answer, questionId, id]
+          );
+        }
 
         const questionResult = await query(
           'SELECT * FROM rfi_questions WHERE id = $1',

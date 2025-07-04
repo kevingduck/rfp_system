@@ -32,11 +32,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     const documents = documentsResult.rows;
     
-    // Generate smart questions using AI
+    // Get company knowledge for answer generation
+    const knowledgeResult = await query(
+      'SELECT * FROM company_knowledge ORDER BY created_at DESC',
+      []
+    );
+    const companyKnowledge = knowledgeResult.rows;
+
+    // Generate smart questions with answers using AI
     const aiService = new AIService();
-    const smartQuestions = await aiService.generateSmartQuestions({
+    const smartQuestions = await aiService.extractQuestionsWithAnswers({
       projectName: project.name,
       documents,
+      companyKnowledge,
       industry: 'VoIP/Telecommunications'
     });
     
@@ -44,8 +52,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const question of smartQuestions) {
       const questionId = require('uuid').v4();
       await query(
-        `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, order_index, category)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO rfi_questions (id, project_id, question_text, question_type, required, order_index, category, answer)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           questionId,
           id,
@@ -53,7 +61,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           'text',
           question.priority >= 4 ? 1 : 0,
           smartQuestions.indexOf(question),
-          question.category
+          question.category,
+          question.answer || null
         ]
       );
     }

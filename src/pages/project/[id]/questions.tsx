@@ -12,6 +12,7 @@ interface Question {
   required: boolean;
   order_index: number;
   category?: string;
+  answer?: string;
 }
 
 interface Project {
@@ -28,9 +29,11 @@ export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [newQuestion, setNewQuestion] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [newAnswer, setNewAnswer] = useState('');
   const [isRequired, setIsRequired] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [editingAnswers, setEditingAnswers] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (id) {
@@ -79,6 +82,7 @@ export default function QuestionsPage() {
           category: newCategory || null,
           required: isRequired,
           order_index: questions.length,
+          answer: newAnswer || null,
         }),
       });
 
@@ -86,6 +90,7 @@ export default function QuestionsPage() {
         await fetchQuestions();
         setNewQuestion('');
         setNewCategory('');
+        setNewAnswer('');
         setIsRequired(true);
       }
     } catch (error) {
@@ -104,6 +109,24 @@ export default function QuestionsPage() {
       }
     } catch (error) {
       console.error('Failed to delete question:', error);
+    }
+  };
+
+  const updateAnswer = async (questionId: string, answer: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}/questions/${questionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer }),
+      });
+
+      if (res.ok) {
+        await fetchQuestions();
+        delete editingAnswers[questionId];
+        setEditingAnswers({...editingAnswers});
+      }
+    } catch (error) {
+      console.error('Failed to update answer:', error);
     }
   };
 
@@ -145,7 +168,7 @@ export default function QuestionsPage() {
       if (res.ok) {
         const result = await res.json();
         await fetchQuestions();
-        alert(`Successfully generated ${result.questionsAdded} smart questions based on your uploaded documents!`);
+        alert(`Successfully extracted ${result.questionsAdded} questions from the RFI document and generated suggested answers!`);
       }
     } catch (error) {
       console.error('Failed to generate AI questions:', error);
@@ -207,15 +230,15 @@ export default function QuestionsPage() {
           <Link href={`/project/${id}`} className="text-blue-600 hover:underline mb-4 inline-block">
             ← Back to Project
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">RFI Questions: {project.name}</h1>
-          <p className="text-gray-600">Define the questions vendors will need to answer</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">RFI Response: {project.name}</h1>
+          <p className="text-gray-600">Questions we need to answer as a vendor responding to this RFI</p>
         </div>
 
         {questions.length === 0 && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Quick Start Options</CardTitle>
-              <CardDescription>Generate questions automatically or use a template</CardDescription>
+              <CardTitle>Extract Questions from RFI Document</CardTitle>
+              <CardDescription>Analyze the uploaded RFI to extract questions and generate answers</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
@@ -225,14 +248,14 @@ export default function QuestionsPage() {
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
-                  {isGenerating ? 'Generating...' : 'Generate AI Questions'}
+                  {isGenerating ? 'Extracting & Generating...' : 'Extract Questions & Generate Answers'}
                 </Button>
                 <Button onClick={() => loadTemplate('voip')} variant="outline">
                   VoIP Template
                 </Button>
               </div>
               <p className="text-sm text-gray-500 mt-2">
-                AI questions are generated based on your uploaded documents
+                Questions will be extracted from the RFI document and answers generated from company knowledge
               </p>
             </CardContent>
           </Card>
@@ -240,7 +263,7 @@ export default function QuestionsPage() {
 
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Add New Question</CardTitle>
+            <CardTitle>Add Question & Answer Manually</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -251,7 +274,17 @@ export default function QuestionsPage() {
                   onChange={(e) => setNewQuestion(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md"
                   rows={2}
-                  placeholder="Enter your question here..."
+                  placeholder="Enter the question from the RFI..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Answer</label>
+                <textarea
+                  value={newAnswer}
+                  onChange={(e) => setNewAnswer(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                  rows={3}
+                  placeholder="Enter your answer..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -295,14 +328,15 @@ export default function QuestionsPage() {
               <CardContent>
                 <div className="space-y-2">
                   {categoryQuestions.map((question, index) => (
-                    <div key={question.id} className="flex items-start gap-2 p-3 bg-gray-50 rounded">
-                      <div className="flex-1">
-                        <p className="text-sm">
-                          {question.question_text}
-                          {question.required && <span className="text-red-500 ml-1">*</span>}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
+                    <div key={question.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">
+                            {question.question_text}
+                            {question.required && <span className="text-red-500 ml-1">*</span>}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 ml-4">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -328,6 +362,79 @@ export default function QuestionsPage() {
                         </Button>
                       </div>
                     </div>
+                    
+                    {/* Answer section */}
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Our Answer:</label>
+                      {editingAnswers[question.id] !== undefined ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingAnswers[question.id]}
+                            onChange={(e) => setEditingAnswers({
+                              ...editingAnswers,
+                              [question.id]: e.target.value
+                            })}
+                            className="w-full px-3 py-2 border rounded-md"
+                            rows={4}
+                            placeholder="Enter your answer..."
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => updateAnswer(question.id, editingAnswers[question.id])}
+                            >
+                              Save Answer
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const newEditing = {...editingAnswers};
+                                delete newEditing[question.id];
+                                setEditingAnswers(newEditing);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-white border rounded-md p-3">
+                          {question.answer ? (
+                            <div>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{question.answer}</p>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="mt-2"
+                                onClick={() => setEditingAnswers({
+                                  ...editingAnswers,
+                                  [question.id]: question.answer || ''
+                                })}
+                              >
+                                Edit Answer
+                              </Button>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm text-gray-500 italic">No answer provided yet</p>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="mt-2"
+                                onClick={() => setEditingAnswers({
+                                  ...editingAnswers,
+                                  [question.id]: ''
+                                })}
+                              >
+                                Add Answer
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   ))}
                 </div>
               </CardContent>

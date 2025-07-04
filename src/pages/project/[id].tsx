@@ -463,6 +463,52 @@ export default function ProjectPage() {
         ) : (
           /* Traditional interface */
           <>
+            {/* RFI/RFP Upload Card - Show prominently if no RFI/RFP document uploaded yet */}
+            {documents.length === 0 && (
+              <Card className="mb-8 border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-2xl text-blue-900">
+                        Upload {project?.project_type} Document to Respond To
+                      </CardTitle>
+                      <CardDescription className="text-blue-700 mt-2">
+                        Start by uploading the {project?.project_type} document you received that needs a response
+                      </CardDescription>
+                    </div>
+                    <FileText className="h-12 w-12 text-blue-600" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-sm text-blue-800">
+                      We'll analyze this document to extract questions and requirements that need to be addressed in our vendor response.
+                    </p>
+                    <div className="flex gap-4">
+                      <Button 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        size="lg"
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-5 w-5" />
+                            Upload {project?.project_type} Document
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="mb-8 flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -470,8 +516,8 @@ export default function ProjectPage() {
                 </h1>
                 <p className="text-gray-600">
                   {project?.project_type === 'RFI' 
-                    ? 'Gather market information and vendor capabilities'
-                    : 'Upload documents and web sources to build your RFP'}
+                    ? 'Prepare your vendor response to the RFI request'
+                    : 'Build your proposal response to the RFP requirements'}
                 </p>
                 {draftData && (
                   <p className="text-sm text-green-600 mt-1">
@@ -480,11 +526,11 @@ export default function ProjectPage() {
                 )}
               </div>
               <div className="flex gap-2">
-                {project?.project_type === 'RFI' && (
+                {project?.project_type === 'RFI' && documents.length > 0 && (
                   <Link href={`/project/${id}/questions`}>
                     <Button variant="outline" size="lg">
                       <Settings className="mr-2 h-5 w-5" />
-                      Manage Questions
+                      Review & Answer Questions
                     </Button>
                   </Link>
                 )}
@@ -551,9 +597,9 @@ export default function ProjectPage() {
                   Document Upload
                 </CardTitle>
                 <CardDescription>
-                  {project?.project_type === 'RFI' 
-                    ? 'Upload market research, vendor lists, spreadsheets, and reference documents'
-                    : 'Upload RFP documents, requirements, specifications, and pricing spreadsheets'}
+                  {documents.length === 0 
+                    ? `Upload the ${project?.project_type} document you received`
+                    : 'Upload additional supporting documents (company info, case studies, certifications)'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

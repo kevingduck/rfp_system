@@ -913,6 +913,125 @@ ANTI-HALLUCINATION RULES:
     return cleanedContent;
   }
 
+  async extractQuestionsWithAnswers(context: { 
+    projectName: string; 
+    documents: any[]; 
+    companyKnowledge: any[];
+    industry?: string;
+  }): Promise<Array<{ question: string; category: string; priority: number; answer?: string }>> {
+    let prompt = `You are helping a vendor respond to an RFI/RFP. Extract all questions from the uploaded RFI/RFP document and generate appropriate answers based on the company knowledge provided.
+
+Project: ${context.projectName}
+Industry: ${context.industry || 'General'}
+
+`;
+
+    // Add the RFI/RFP document content
+    if (context.documents.length > 0) {
+      prompt += 'RFI/RFP DOCUMENT CONTENT:\n';
+      for (const doc of context.documents) {
+        let content = '';
+        try {
+          const parsedContent = JSON.parse(doc.content);
+          content = parsedContent.text || JSON.stringify(parsedContent);
+        } catch {
+          content = doc.content;
+        }
+        prompt += `\nDocument: ${doc.filename}\n${content}\n`;
+      }
+    }
+
+    // Add company knowledge
+    if (context.companyKnowledge.length > 0) {
+      prompt += '\n\nCOMPANY KNOWLEDGE BASE:\n';
+      for (const knowledge of context.companyKnowledge) {
+        prompt += `\n${knowledge.title}:\n${knowledge.content}\n`;
+      }
+    }
+
+    prompt += `
+INSTRUCTIONS:
+1. Extract ALL questions from the RFI/RFP document
+2. For each question, generate a comprehensive answer based on the company knowledge
+3. If company knowledge doesn't contain specific information, indicate what needs to be provided
+4. Categorize questions appropriately
+5. Mark questions as high priority (5) if they're about core capabilities, pricing, or compliance
+
+Format each item as:
+CATEGORY: [category name]
+QUESTION: [exact question from the RFI/RFP]
+ANSWER: [generated answer based on company knowledge]
+PRIORITY: [1-5, where 5 is highest]
+
+Extract and answer ALL questions found in the document.`;
+
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      return this.parseQuestionsWithAnswers(content);
+    } catch (error) {
+      console.error('AI question extraction error:', error);
+      return [];
+    }
+  }
+
+  private parseQuestionsWithAnswers(response: string): Array<{ question: string; category: string; priority: number; answer?: string }> {
+    const questions: Array<{ question: string; category: string; priority: number; answer?: string }> = [];
+    const lines = response.split('\n');
+    
+    let currentCategory = '';
+    let currentQuestion = '';
+    let currentAnswer = '';
+    let currentPriority = 3;
+
+    for (const line of lines) {
+      if (line.startsWith('CATEGORY:')) {
+        // Save previous question if exists
+        if (currentQuestion) {
+          questions.push({
+            question: currentQuestion,
+            category: currentCategory,
+            priority: currentPriority,
+            answer: currentAnswer || undefined
+          });
+        }
+        currentCategory = line.replace('CATEGORY:', '').trim();
+        currentQuestion = '';
+        currentAnswer = '';
+        currentPriority = 3;
+      } else if (line.startsWith('QUESTION:')) {
+        currentQuestion = line.replace('QUESTION:', '').trim();
+      } else if (line.startsWith('ANSWER:')) {
+        currentAnswer = line.replace('ANSWER:', '').trim();
+      } else if (line.startsWith('PRIORITY:')) {
+        currentPriority = parseInt(line.replace('PRIORITY:', '').trim()) || 3;
+      }
+    }
+    
+    // Don't forget the last question
+    if (currentQuestion) {
+      questions.push({
+        question: currentQuestion,
+        category: currentCategory,
+        priority: currentPriority,
+        answer: currentAnswer || undefined
+      });
+    }
+
+    return questions;
+  }
+
   async generateSmartQuestions(context: { 
     projectName: string; 
     documents: any[]; 
