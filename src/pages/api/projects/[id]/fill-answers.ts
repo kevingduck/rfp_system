@@ -2,13 +2,21 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { query } from '@/lib/pg-db';
 import { AIService } from '@/lib/ai-service';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { id } = req.query;
-  const { questions, documents, includeCompanyKnowledge } = req.body;
+  const { questions, documentIds, includeCompanyKnowledge } = req.body;
 
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid project ID' });
@@ -19,13 +27,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log(`[Fill Answers] Processing ${questions.length} questions with ${documents.length} documents`);
+    console.log(`[Fill Answers] Processing ${questions.length} questions with ${documentIds.length} documents`);
     
     // Get full document content for the supporting documents
-    const docIds = documents.map((d: any) => d.id);
     const documentsResult = await query(
       'SELECT * FROM documents WHERE id = ANY($1)',
-      [docIds]
+      [documentIds]
     );
     const fullDocuments = documentsResult.rows;
     

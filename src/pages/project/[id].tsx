@@ -17,6 +17,7 @@ interface Document {
   file_type?: string;
   extractedInfo?: any;
   metadata?: any;
+  uploadedAt?: string;
 }
 
 interface WebSource {
@@ -56,6 +57,7 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [webSources, setWebSources] = useState<WebSource[]>([]);
+  const [mainRFIDocument, setMainRFIDocument] = useState<Document | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [isScraping, setIsScraping] = useState(false);
@@ -107,18 +109,27 @@ export default function ProjectPage() {
         const data = await res.json();
         // Ensure data is an array
         const docs = Array.isArray(data) ? data : [];
-        setDocuments(docs);
         
-        // Check if we have an RFI/RFP document
-        const hasRFI = docs.some(doc => 
+        // Find the main RFI/RFP document
+        const rfiDoc = docs.find(doc => 
           doc.filename?.toLowerCase().includes('rfi') || 
           doc.filename?.toLowerCase().includes('rfp')
         );
-        setHasRFIDocument(hasRFI);
         
-        // If we have an RFI document and haven't extracted questions yet, do it automatically
-        if (hasRFI && docs.length === 1 && questions.length === 0) {
-          await extractQuestions();
+        if (rfiDoc) {
+          setMainRFIDocument(rfiDoc);
+          setHasRFIDocument(true);
+          // Set other documents (supporting docs)
+          setDocuments(docs.filter(doc => doc.id !== rfiDoc.id));
+          
+          // If we have an RFI document and haven't extracted questions yet, do it automatically
+          if (docs.length === 1 && questions.length === 0) {
+            await extractQuestions();
+          }
+        } else {
+          setDocuments(docs);
+          setHasRFIDocument(false);
+          setMainRFIDocument(null);
         }
       } else {
         console.error('Failed to fetch documents:', res.status);
@@ -263,7 +274,29 @@ export default function ProjectPage() {
         
         // Update documents after each batch
         if (uploadedDocs.length > 0) {
-          setDocuments(prev => [...prev, ...uploadedDocs]);
+          // Separate RFI/RFP documents from supporting docs
+          const newRFIDocs = uploadedDocs.filter(doc => 
+            doc.filename?.toLowerCase().includes('rfi') || 
+            doc.filename?.toLowerCase().includes('rfp')
+          );
+          const newSupportingDocs = uploadedDocs.filter(doc => 
+            !doc.filename?.toLowerCase().includes('rfi') && 
+            !doc.filename?.toLowerCase().includes('rfp')
+          );
+          
+          // Update main RFI document if found
+          if (newRFIDocs.length > 0 && !mainRFIDocument) {
+            setMainRFIDocument(newRFIDocs[0]);
+            setHasRFIDocument(true);
+            // Add any additional RFI docs to supporting docs
+            if (newRFIDocs.length > 1) {
+              setDocuments(prev => [...prev, ...newRFIDocs.slice(1), ...newSupportingDocs]);
+            } else {
+              setDocuments(prev => [...prev, ...newSupportingDocs]);
+            }
+          } else {
+            setDocuments(prev => [...prev, ...uploadedDocs]);
+          }
           uploadedDocs.length = 0; // Clear for next batch
         }
       }
@@ -392,7 +425,10 @@ export default function ProjectPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           questions: questions.map(q => ({ id: q.id, text: q.question_text })),
-          documents: documents, // Send all documents
+          documentIds: [
+            ...(mainRFIDocument ? [mainRFIDocument.id] : []),
+            ...documents.map(d => d.id)
+          ], // Include main RFI doc and all supporting docs
           includeCompanyKnowledge: true // Flag to include company knowledge
         }),
       });
@@ -595,7 +631,7 @@ export default function ProjectPage() {
           /* Traditional interface */
           <>
             {/* RFI/RFP Upload Card - Show prominently if no RFI/RFP document uploaded yet */}
-            {documents.length === 0 && (
+            {!mainRFIDocument && (
               <Card className="mb-8 border-blue-200 bg-blue-50">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -646,8 +682,8 @@ export default function ProjectPage() {
               </Card>
             )}
 
-            {/* Workflow Status Indicator */}
-            {documents.length > 0 && project?.project_type === 'RFI' && (
+            {/* Workflow Status Indicator - Remove once main RFI doc is uploaded */}
+            {!mainRFIDocument && project?.project_type === 'RFI' && (
               <Card className="mb-6 bg-gradient-to-r from-gray-50 to-gray-100">
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between">
@@ -765,6 +801,110 @@ export default function ProjectPage() {
               </div>
             </div>
 
+        {/* Main RFI/RFP Document Section */}
+        {mainRFIDocument && (
+          <div className="mb-8">
+            <Card className="border-2 border-purple-300 bg-purple-50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl flex items-center">
+                      <FileText className="mr-2 h-6 w-6 text-purple-600" />
+                      Main {project?.project_type} Document
+                    </CardTitle>
+                    <CardDescription className="text-purple-700 mt-1">
+                      This is the client's request document we're responding to
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {questionsExtracted ? (
+                      <div className="flex items-center text-green-600">
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        <span className="text-sm font-medium">{questions.length} Questions Extracted</span>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={extractQuestions}
+                        disabled={isExtractingQuestions}
+                        variant="default"
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isExtractingQuestions ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Extracting...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Extract Questions
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-white border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center flex-1">
+                      <FileText className="h-5 w-5 text-purple-600 mr-3" />
+                      <div>
+                        <h4 className="font-semibold text-sm">{mainRFIDocument.filename}</h4>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {mainRFIDocument.file_type || 'Document'} • Uploaded {new Date(mainRFIDocument.uploadedAt || Date.now()).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedDocument(mainRFIDocument)}
+                        className="text-purple-600 hover:text-purple-800 transition-colors"
+                        title="View document"
+                      >
+                        <Eye className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Progress indicator */}
+                  <div className="mt-4 pt-4 border-t border-purple-100">
+                    <div className="flex items-center space-x-4">
+                      <div className={`flex items-center ${questionsExtracted ? 'text-green-600' : 'text-gray-400'}`}>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 ${
+                          questionsExtracted ? 'border-green-600 bg-green-100' : 'border-gray-300'
+                        }`}>
+                          {questionsExtracted ? <Check className="h-4 w-4" /> : '1'}
+                        </div>
+                        <span className="text-sm">Questions Extracted</span>
+                      </div>
+                      <div className="h-px flex-1 bg-gray-300" />
+                      <div className={`flex items-center ${questions.some(q => q.answer) ? 'text-green-600' : 'text-gray-400'}`}>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 ${
+                          questions.some(q => q.answer) ? 'border-green-600 bg-green-100' : 'border-gray-300'
+                        }`}>
+                          {questions.some(q => q.answer) ? <Check className="h-4 w-4" /> : '2'}
+                        </div>
+                        <span className="text-sm">Answers Filled</span>
+                      </div>
+                      <div className="h-px flex-1 bg-gray-300" />
+                      <div className={`flex items-center ${draftData ? 'text-green-600' : 'text-gray-400'}`}>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-2 ${
+                          draftData ? 'border-green-600 bg-green-100' : 'border-gray-300'
+                        }`}>
+                          {draftData ? <Check className="h-4 w-4" /> : '3'}
+                        </div>
+                        <span className="text-sm">Response Generated</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div>
             <Card>
@@ -774,11 +914,9 @@ export default function ProjectPage() {
                   {questionsExtracted ? 'Supporting Documents' : 'Document Upload'}
                 </CardTitle>
                 <CardDescription>
-                  {documents.length === 0 
-                    ? `Upload the ${project?.project_type} document you received`
-                    : questionsExtracted 
-                      ? 'Upload company info, case studies, certifications to auto-fill answers'
-                      : 'Upload additional supporting documents'}
+                  {!mainRFIDocument
+                    ? `Upload the ${project?.project_type} document you received from the client`
+                    : 'Upload company info, case studies, certifications to help answer the questions'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

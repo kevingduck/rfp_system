@@ -1158,9 +1158,25 @@ Make questions specific to the context and avoid generic questions.`;
     console.log(`[AIService] Generating answers for ${params.questions.length} questions from ${params.documents.length} documents`);
     
     try {
-      // Build document context
-      const documentContext = params.documents.map(doc => {
+      // Build document context with size optimization
+      const MAX_CONTENT_PER_DOC = 8000; // Reduced to prevent token limits
+      const MAX_TOTAL_CONTEXT = 30000; // Overall limit
+      
+      let totalLength = 0;
+      const documentContextParts: string[] = [];
+      
+      // Prioritize documents: Company Info first, then RFI/RFP, then others
+      const sortedDocs = params.documents.sort((a, b) => {
+        if (a.metadata?.type === 'company_info') return -1;
+        if (b.metadata?.type === 'company_info') return 1;
+        if (a.filename.toLowerCase().includes('rfi') || a.filename.toLowerCase().includes('rfp')) return -1;
+        if (b.filename.toLowerCase().includes('rfi') || b.filename.toLowerCase().includes('rfp')) return 1;
+        return 0;
+      });
+      
+      for (const doc of sortedDocs) {
         let content = doc.content;
+        
         // Parse content if it's JSON
         if (typeof content === 'string' && content.startsWith('{')) {
           try {
@@ -1171,13 +1187,32 @@ Make questions specific to the context and avoid generic questions.`;
           }
         }
         
-        // Limit content length
-        if (content.length > 10000) {
-          content = content.substring(0, 10000) + '... [truncated]';
+        // Skip if we've already hit total limit
+        if (totalLength >= MAX_TOTAL_CONTEXT) {
+          console.log(`[AIService] Skipping ${doc.filename} - total context limit reached`);
+          continue;
         }
         
-        return `=== ${doc.filename} ===\n${content}\n`;
-      }).join('\n\n');
+        // Limit individual document content
+        let truncated = false;
+        if (content.length > MAX_CONTENT_PER_DOC) {
+          content = content.substring(0, MAX_CONTENT_PER_DOC);
+          truncated = true;
+        }
+        
+        // Check if adding this would exceed total limit
+        if (totalLength + content.length > MAX_TOTAL_CONTEXT) {
+          content = content.substring(0, MAX_TOTAL_CONTEXT - totalLength);
+          truncated = true;
+        }
+        
+        const docContext = `=== ${doc.filename} ===\n${content}${truncated ? '\n... [truncated for length]' : ''}\n`;
+        documentContextParts.push(docContext);
+        totalLength += docContext.length;
+      }
+      
+      const documentContext = documentContextParts.join('\n\n');
+      console.log(`[AIService] Document context built: ${documentContextParts.length} docs, ${totalLength} chars total`);
       
       // Build questions list
       const questionsList = params.questions.map((q, idx) => 
