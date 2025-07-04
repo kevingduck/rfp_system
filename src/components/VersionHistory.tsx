@@ -39,16 +39,22 @@ export function VersionHistory({ projectId, currentContent, onRestore }: Version
   const [showDiff, setShowDiff] = useState(false);
 
   useEffect(() => {
+    console.log('VersionHistory mounted with projectId:', projectId);
     fetchRevisions();
   }, [projectId]);
 
   const fetchRevisions = async () => {
+    console.log('Fetching revisions for project:', projectId);
     setLoading(true);
     try {
       const response = await fetch(`/api/projects/${projectId}/draft/revisions`);
+      console.log('Revisions response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Revisions data:', data);
         setRevisions(data);
+      } else {
+        console.error('Failed to fetch revisions, status:', response.status);
       }
     } catch (error) {
       console.error('Failed to fetch revisions:', error);
