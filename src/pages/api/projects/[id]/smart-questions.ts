@@ -88,6 +88,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error) {
     console.error('Smart questions generation error:', error);
-    res.status(500).json({ error: 'Failed to generate smart questions' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to generate smart questions',
+      details: errorMessage,
+      hint: 'Make sure you have uploaded an RFI/RFP document and have company knowledge configured.'
+    });
   }
 }

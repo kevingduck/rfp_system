@@ -169,48 +169,21 @@ export default function QuestionsPage() {
         const result = await res.json();
         await fetchQuestions();
         alert(result.message || `Successfully extracted ${result.questionsAdded} questions from the RFI document and generated suggested answers!`);
+      } else {
+        const errorData = await res.json();
+        console.error('API Error:', errorData);
+        const errorMessage = errorData.details || errorData.error || 'Failed to generate questions.';
+        const hint = errorData.hint || '';
+        alert(`${errorMessage}${hint ? '\n\n' + hint : ''}`);
       }
     } catch (error) {
       console.error('Failed to generate AI questions:', error);
-      alert('Failed to generate questions. Please try again.');
+      alert('Failed to generate questions. Please check your connection and try again.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const loadTemplate = async (templateName: string) => {
-    const templates: Record<string, Array<{ question: string; category: string; required: boolean }>> = {
-      voip: [
-        { question: "What is your company's primary business and industry?", category: "Company Information", required: true },
-        { question: "How long has your company been in business?", category: "Company Information", required: true },
-        { question: "What VoIP solutions do you currently offer?", category: "Product Information", required: true },
-        { question: "What are the key features of your VoIP platform?", category: "Product Information", required: true },
-        { question: "How many concurrent calls can your system support?", category: "Technical Specifications", required: true },
-        { question: "What codecs does your system support?", category: "Technical Specifications", required: false },
-        { question: "Do you offer SIP trunking services?", category: "Services", required: true },
-        { question: "What level of uptime do you guarantee?", category: "Service Level", required: true },
-        { question: "What security measures are in place for your VoIP services?", category: "Security", required: true },
-        { question: "Can you provide references from similar organizations?", category: "References", required: true },
-      ],
-    };
-
-    const selectedTemplate = templates[templateName];
-    if (selectedTemplate) {
-      for (const item of selectedTemplate) {
-        await fetch(`/api/projects/${id}/questions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            question_text: item.question,
-            category: item.category,
-            required: item.required,
-            order_index: questions.length,
-          }),
-        });
-      }
-      await fetchQuestions();
-    }
-  };
 
   if (!project) {
     return <div className="min-h-screen bg-gray-50 p-8">Loading...</div>;
@@ -257,9 +230,6 @@ export default function QuestionsPage() {
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
                   {isGenerating ? 'Extracting Questions & Generating Answers...' : 'Extract Questions from RFI/RFP'}
-                </Button>
-                <Button onClick={() => loadTemplate('voip')} variant="outline">
-                  VoIP Template
                 </Button>
               </div>
               <p className="text-sm text-gray-500 mt-2">

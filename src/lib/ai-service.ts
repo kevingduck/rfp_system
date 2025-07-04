@@ -932,11 +932,26 @@ Industry: ${context.industry || 'General'}
       for (const doc of context.documents) {
         let content = '';
         try {
-          const parsedContent = JSON.parse(doc.content);
-          content = parsedContent.text || JSON.stringify(parsedContent);
-        } catch {
-          content = doc.content;
+          if (typeof doc.content === 'string') {
+            try {
+              const parsedContent = JSON.parse(doc.content);
+              content = parsedContent.text || JSON.stringify(parsedContent);
+            } catch {
+              content = doc.content;
+            }
+          } else {
+            content = JSON.stringify(doc.content);
+          }
+        } catch (e) {
+          console.error('Error parsing document content:', e);
+          content = 'Unable to parse document content';
         }
+        
+        // Limit content length to avoid token limits
+        if (content.length > 50000) {
+          content = content.substring(0, 50000) + '... [truncated]';
+        }
+        
         prompt += `\nDocument: ${doc.filename}\n${content}\n`;
       }
     }
