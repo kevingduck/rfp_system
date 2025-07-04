@@ -57,9 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { sections, metadata } = req.body;
 
-      // Get the most recent draft with current version
+      // Get the most recent draft with current version and content
       const draftResult = await query(
-        'SELECT id, current_version FROM drafts WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
+        'SELECT id, current_version, content FROM drafts WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1',
         [id]
       );
       const draft = draftResult.rows[0];
@@ -68,11 +68,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: 'No draft found to update' });
       }
 
+      // Check if the content has actually changed
+      const currentContent = JSON.parse(draft.content);
+      const hasChanged = JSON.stringify(currentContent) !== JSON.stringify(sections);
+
+      if (!hasChanged) {
+        // No changes, don't create a new revision
+        return res.json({ success: true, version: draft.current_version || 1, noChanges: true });
+      }
+
       // Get current version and increment
       const currentVersion = draft.current_version || 1;
       const newVersion = currentVersion + 1;
 
-      // Create a revision for the new content
+      // Create a revision for the previous content if this is not the first save after generation
+      const revisionsResult = await query(
+        'SELECT COUNT(*) as count FROM draft_revisions WHERE draft_id = $1',
+        [draft.id]
+      );
+      const revisionCount = parseInt(revisionsResult.rows[0].count);
+
+      // Only create a revision if there are already revisions (meaning this isn't the first edit)
+      if (revisionCount > 0) {
+        // Check if we need to create a revision for the current state before updating
+        const lastRevisionResult = await query(
+          'SELECT content FROM draft_revisions WHERE draft_id = $1 ORDER BY version_number DESC LIMIT 1',
+          [draft.id]
+        );
+        const lastRevision = lastRevisionResult.rows[0];
+        
+        if (!lastRevision || JSON.stringify(JSON.parse(lastRevision.content)) !== JSON.stringify(currentContent)) {
+          // Create a revision for the current state before updating
+          await query(
+            `INSERT INTO draft_revisions (id, draft_id, project_id, version_number, content, metadata, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              uuidv4(),
+              draft.id,
+              id,
+              currentVersion,
+              draft.content, // Use the existing content
+              JSON.stringify(metadata),
+              null // No user system yet
+            ]
+          );
+        }
+      }
+
+      // Update the draft
+      await query(
+        `UPDATE drafts 
+         SET content = $1, metadata = $2, current_version = $3, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4`,
+        [JSON.stringify(sections), JSON.stringify(metadata), newVersion, draft.id]
+      );
+
+      // Create a revision for the new state
       await query(
         `INSERT INTO draft_revisions (id, draft_id, project_id, version_number, content, metadata, created_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -85,14 +136,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           JSON.stringify(metadata),
           null // No user system yet
         ]
-      );
-
-      // Update the draft
-      await query(
-        `UPDATE drafts 
-         SET content = $1, metadata = $2, current_version = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4`,
-        [JSON.stringify(sections), JSON.stringify(metadata), newVersion, draft.id]
       );
 
       // Log the activity
