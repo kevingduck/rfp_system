@@ -568,19 +568,12 @@ export default function ProjectPage() {
     if (!draftData || !id || !project) return;
     
     try {
-      // Generate the final document
-      const endpoint = project.project_type === 'RFI' 
-        ? `/api/projects/${id}/generate-rfi`
-        : `/api/projects/${id}/generate`;
-        
-      const res = await fetch(endpoint, {
+      // Export the existing draft content without regenerating
+      const res = await fetch(`/api/projects/${id}/export-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          chatContext: draftData.metadata?.chatContext,
-          includeCitations,
-          fromDraft: true,
-          draftSections: draftData.sections
+          includeCitations
         })
       });
 
@@ -594,9 +587,13 @@ export default function ProjectPage() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+      } else {
+        const error = await res.json();
+        alert(`Export failed: ${error.error}`);
       }
     } catch (error) {
       console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
     }
   };
 
