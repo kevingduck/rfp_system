@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2, ArrowRight, Check, Sparkles, Save, Edit2, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Upload, Globe, Download, Loader2, FileCheck, Link as LinkIcon, Settings, X, Wand2, Eye, Trash2, ArrowRight, Check, Sparkles, Save, Edit2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { GenerationStatus } from '@/components/GenerationStatus';
 import { WelcomeCard } from '@/components/WelcomeCard';
 import { DraftPreview } from '@/components/DraftPreview';
@@ -49,6 +49,7 @@ interface Question {
   order_index: number;
   category?: string;
   answer?: string;
+  preferred_documents?: string[];
 }
 
 export default function ProjectPage() {
@@ -79,6 +80,8 @@ export default function ProjectPage() {
   const [questionsExtracted, setQuestionsExtracted] = useState(false);
   const [editingAnswers, setEditingAnswers] = useState<Record<string, string>>({});
   const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [regeneratingQuestions, setRegeneratingQuestions] = useState<Record<string, boolean>>({});
+  const [showDocumentSelector, setShowDocumentSelector] = useState<Record<string, boolean>>({});
   const [hasRFIDocument, setHasRFIDocument] = useState(false);
   
   useEffect(() => {
@@ -549,6 +552,34 @@ export default function ProjectPage() {
       }
     } catch (error) {
       console.error('Failed to update answer:', error);
+    }
+  };
+  
+  const regenerateAnswer = async (questionId: string, questionText: string, preferredDocuments?: string[]) => {
+    setRegeneratingQuestions(prev => ({ ...prev, [questionId]: true }));
+    try {
+      const res = await fetch(`/api/projects/${id}/questions/${questionId}/regenerate-answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentIds: preferredDocuments,
+          includeCompanyKnowledge: true
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        await fetchQuestions();
+        // Show a success message or notification if needed
+      } else {
+        const error = await res.json();
+        alert(`Failed to regenerate answer: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to regenerate answer:', error);
+      alert('Failed to regenerate answer. Please check your connection and try again.');
+    } finally {
+      setRegeneratingQuestions(prev => ({ ...prev, [questionId]: false }));
     }
   };
   
@@ -1256,6 +1287,12 @@ export default function ProjectPage() {
                           {question.category && (
                             <span className="text-xs text-gray-500 mt-1">Category: {question.category}</span>
                           )}
+                          {question.preferred_documents && question.preferred_documents.length > 0 && (
+                            <div className="text-xs text-blue-600 mt-1 flex items-center">
+                              <FileText className="h-3 w-3 mr-1" />
+                              Using {question.preferred_documents.length} specific document{question.preferred_documents.length > 1 ? 's' : ''}
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -1300,34 +1337,72 @@ export default function ProjectPage() {
                             {question.answer ? (
                               <div>
                                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{question.answer}</p>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="mt-2"
-                                  onClick={() => setEditingAnswers({
-                                    ...editingAnswers,
-                                    [question.id]: question.answer || ''
-                                  })}
-                                >
-                                  <Edit2 className="mr-2 h-4 w-4" />
-                                  Edit Answer
-                                </Button>
+                                <div className="flex gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setEditingAnswers({
+                                      ...editingAnswers,
+                                      [question.id]: question.answer || ''
+                                    })}
+                                  >
+                                    <Edit2 className="mr-2 h-4 w-4" />
+                                    Edit Answer
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => regenerateAnswer(question.id, question.question_text, question.preferred_documents)}
+                                    disabled={regeneratingQuestions[question.id]}
+                                  >
+                                    {regeneratingQuestions[question.id] ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Regenerating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        Regenerate Answer
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
                               </div>
                             ) : (
                               <div>
                                 <p className="text-sm text-gray-500 italic">No answer provided yet</p>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="mt-2"
-                                  onClick={() => setEditingAnswers({
-                                    ...editingAnswers,
-                                    [question.id]: ''
-                                  })}
-                                >
-                                  <Edit2 className="mr-2 h-4 w-4" />
-                                  Add Answer
-                                </Button>
+                                <div className="flex gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setEditingAnswers({
+                                      ...editingAnswers,
+                                      [question.id]: ''
+                                    })}
+                                  >
+                                    <Edit2 className="mr-2 h-4 w-4" />
+                                    Add Answer
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => regenerateAnswer(question.id, question.question_text, question.preferred_documents)}
+                                    disabled={regeneratingQuestions[question.id]}
+                                  >
+                                    {regeneratingQuestions[question.id] ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="mr-2 h-4 w-4" />
+                                        Generate Answer
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>

@@ -113,6 +113,7 @@ async function initializeDatabase() {
         position INTEGER DEFAULT 0,
         order_index INTEGER DEFAULT 0, -- alias for compatibility
         required BOOLEAN DEFAULT true,
+        preferred_documents TEXT[],
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
@@ -263,6 +264,7 @@ async function initializeDatabase() {
     // Fix rfi_questions table
     await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'text'`);
     await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE rfi_questions ADD COLUMN IF NOT EXISTS preferred_documents TEXT[]`);
     
     // Fix company_knowledge table
     await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS original_filename TEXT`);
