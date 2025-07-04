@@ -11,6 +11,7 @@ import { DocumentViewer } from '@/components/DocumentViewer';
 import { DocumentSummaryCard } from '@/components/DocumentSummaryCard';
 import { WebSourceSummaryCard } from '@/components/WebSourceSummaryCard';
 import { HelpButton } from '@/components/HelpButton';
+import { SmartChatAssistant } from '@/components/SmartChatAssistant';
 
 interface Document {
   id: string;
@@ -214,6 +215,106 @@ export default function ProjectPage() {
       }
     } catch (error) {
       console.error('Failed to delete draft:', error);
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+    
+    try {
+      const res = await fetch(`/api/projects/${id}/documents/${documentId}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        await fetchDocuments();
+      }
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+    }
+  };
+
+  const fillAnswersFromSources = async () => {
+    return autoFillAnswers();
+  };
+
+  const handleGenerateDraft = async () => {
+    setIsGenerating(true);
+    setGenerationStatus('Starting generation...');
+    
+    try {
+      const response = await fetch(`/api/projects/${id}/generate-draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          targetLength,
+          chatContext: {} // Chat context would be passed here
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate draft');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            
+            try {
+              const event = JSON.parse(data);
+              if (event.type === 'progress') {
+                setGenerationStatus(event.message);
+              } else if (event.type === 'complete') {
+                setDraftData(event.draft);
+                setShowDraftPreview(true);
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Generation error:', error);
+      setGenerationStatus('Generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
+      setTimeout(() => setGenerationStatus(''), 3000);
+    }
+  };
+
+  const handleChatFileUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('projectId', id as string);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+
+      await fetchDocuments();
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+      throw error;
     }
   };
 
@@ -1334,6 +1435,21 @@ export default function ProjectPage() {
             onClose={() => setSelectedDocument(null)}
           />
         )}
+        
+        {/* Smart Chat Assistant */}
+        <SmartChatAssistant
+          projectId={id as string}
+          projectType={project?.project_type || 'RFP'}
+          documents={documents}
+          questions={questions}
+          onUpdateQuestions={setQuestions}
+          onUploadDocument={handleChatFileUpload}
+          onDeleteDocument={handleDeleteDocument}
+          onGenerateAnswers={fillAnswersFromSources}
+          onExtractQuestions={extractQuestions}
+          onGenerateDraft={handleGenerateDraft}
+          currentDraft={draftData}
+        />
       </div>
     </div>
   );

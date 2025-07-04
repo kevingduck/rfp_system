@@ -165,6 +165,12 @@ export function HelpWalkthrough({ isOpen, onClose, startTab = 'overview' }: Help
       description: 'Track all changes to your document with detailed version history showing exactly what changed between versions.',
       icon: <CheckCircle className="h-6 w-6 text-indigo-500" />,
       location: 'Draft Preview → Version History'
+    },
+    {
+      title: 'AI Assistant',
+      description: 'Get help with any task through natural language. The assistant can extract questions, manage documents, generate answers, and guide you through the process.',
+      icon: <MessageSquare className="h-6 w-6 text-blue-500" />,
+      location: 'Bottom right corner - blue chat button'
     }
   ];
 
