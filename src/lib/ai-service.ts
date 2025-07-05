@@ -6,6 +6,14 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
+// Model Selection Strategy:
+// - Claude Sonnet 4: Used for RFI/RFP generation (64K max output tokens = ~48K words)
+// - Claude 3.5 Sonnet: Used for question extraction and answer generation (8K max output)
+// Model limits as of 2025:
+// - Claude Opus 4: 200K context, 32K output (~24K words)
+// - Claude Sonnet 4: 200K context, 64K output (~48K words) - BEST for long documents
+// - Claude 3.5 Sonnet: 200K context, 8K output (~6.2K words)
+
 interface DocumentContext {
   projectType: 'RFI' | 'RFP';
   projectName: string;
@@ -94,12 +102,12 @@ export class AIService {
     if (onProgress) onProgress('Sending to AI for generation...', 75);
     
     try {
-      console.log(`[AIService] Sending to Claude Opus 3 for content generation...`);
+      console.log(`[AIService] Sending to Claude Sonnet 4 for content generation (64K max output)...`);
       const startTime = Date.now();
       
       const response = await anthropic.messages.create({
-        model: 'claude-3-opus-20240229',
-        max_tokens: Math.min(50000, Math.max(4000, (context.targetLength || 15) * 1000)), // ~1000 tokens per page, max 50k
+        model: 'claude-sonnet-4-20250514', // Using Sonnet 4 for 64K max output tokens
+        max_tokens: Math.min(64000, Math.max(8000, (context.targetLength || 15) * 1500)), // ~1500 tokens per page, max 64k
         temperature: 0.1, // Near-deterministic for factual accuracy
         messages: [
           {
@@ -110,7 +118,7 @@ export class AIService {
       });
 
       const duration = Date.now() - startTime;
-      console.log(`[AIService] Claude Opus 3 responded in ${duration}ms`);
+      console.log(`[AIService] Claude Sonnet 4 responded in ${duration}ms`);
       
       const content = response.content[0].type === 'text' ? response.content[0].text : '';
       console.log(`[AIService] Raw AI response preview: ${content.substring(0, 200)}...`);
@@ -176,12 +184,12 @@ export class AIService {
     if (onProgress) onProgress('Sending to AI for generation...', 75);
     
     try {
-      console.log(`[AIService] Sending to Claude Opus 3 for content generation...`);
+      console.log(`[AIService] Sending to Claude Sonnet 4 for content generation (64K max output)...`);
       const startTime = Date.now();
       
       const response = await anthropic.messages.create({
-        model: 'claude-3-opus-20240229',
-        max_tokens: Math.min(50000, Math.max(4000, (context.targetLength || 15) * 1000)), // ~1000 tokens per page, max 50k
+        model: 'claude-sonnet-4-20250514', // Using Sonnet 4 for 64K max output tokens
+        max_tokens: Math.min(64000, Math.max(8000, (context.targetLength || 15) * 1500)), // ~1500 tokens per page, max 64k
         temperature: 0.1, // Near-deterministic for factual accuracy
         messages: [
           {
@@ -192,7 +200,7 @@ export class AIService {
       });
 
       const duration = Date.now() - startTime;
-      console.log(`[AIService] Claude Opus 3 responded in ${duration}ms`);
+      console.log(`[AIService] Claude Sonnet 4 responded in ${duration}ms`);
       
       const content = response.content[0].type === 'text' ? response.content[0].text : '';
       console.log(`[AIService] Raw AI response preview: ${content.substring(0, 200)}...`);
