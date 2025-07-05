@@ -7,11 +7,11 @@ const anthropic = new Anthropic({
 });
 
 // Model Selection Strategy:
-// - Claude 3.5 Sonnet: Used for RFI/RFP generation with 128K output tokens (beta)
-//   - Up to 64K tokens is GA, 64K-128K is beta
-//   - Requires 'output-128k-2025-02-19' beta header
-//   - Can generate ~100 pages in a single response
+// - Claude 3.5 Sonnet: Used for RFI/RFP generation (8192 token output limit)
+//   - Generates ~15 pages of content per call
+//   - For longer documents, consider chunking strategy
 // - Claude 3.5 Sonnet: Also used for question extraction and answer generation
+// Note: 128K output feature requires beta headers and may not be available in all SDK versions
 
 interface DocumentContext {
   projectType: 'RFI' | 'RFP';
@@ -92,8 +92,16 @@ export class AIService {
   async generateRFIContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting RFI generation for ${context.projectName}`);
     console.log(`[AIService] Processing ${context.documents.length} documents and ${context.webSources.length} web sources`);
+    console.log(`[AIService] Target length: ${context.targetLength} pages`);
     
     if (onProgress) onProgress('Building AI prompt...', 65);
+    
+    // For documents over 15 pages, we'll need to use chunking
+    const needsChunking = (context.targetLength || 15) > 15;
+    if (needsChunking) {
+      console.log(`[AIService] Document requires chunking strategy for ${context.targetLength} pages`);
+      return this.generateRFIContentChunked(context, onProgress);
+    }
     
     const prompt = await this.buildRFIPrompt(context, onProgress);
     console.log(`[AIService] Prompt built, length: ${prompt.length} chars`);
@@ -102,27 +110,20 @@ export class AIService {
     
     try {
       console.log(`[AIService] Sending to Claude 3.5 Sonnet for content generation...`);
-      console.log(`[AIService] Target length: ${context.targetLength} pages, using up to ${Math.min(128000, (context.targetLength || 15) * 2500)} tokens`);
+      console.log(`[AIService] Using standard generation (8192 token limit)`);
       const startTime = Date.now();
       
-      const response = await anthropic.messages.create(
-        {
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: Math.min(128000, Math.max(8192, (context.targetLength || 15) * 2500)), // ~2500 tokens per page, max 128K
-          temperature: 0.1, // Near-deterministic for factual accuracy
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        },
-        {
-          headers: {
-            'anthropic-beta': 'output-128k-2025-02-19'
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192, // Current max for Claude 3.5 Sonnet
+        temperature: 0.1, // Near-deterministic for factual accuracy
+        messages: [
+          {
+            role: 'user',
+            content: prompt
           }
-        }
-      );
+        ]
+      });
 
       const duration = Date.now() - startTime;
       console.log(`[AIService] Claude 3.5 Sonnet responded in ${duration}ms`);
@@ -182,8 +183,16 @@ export class AIService {
   async generateRFPContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting RFP generation for ${context.projectName}`);
     console.log(`[AIService] Processing ${context.documents.length} documents and ${context.webSources.length} web sources`);
+    console.log(`[AIService] Target length: ${context.targetLength} pages`);
     
     if (onProgress) onProgress('Building AI prompt...', 65);
+    
+    // For documents over 15 pages, we'll need to use chunking
+    const needsChunking = (context.targetLength || 15) > 15;
+    if (needsChunking) {
+      console.log(`[AIService] Document requires chunking strategy for ${context.targetLength} pages`);
+      return this.generateRFPContentChunked(context, onProgress);
+    }
     
     const prompt = await this.buildRFPPrompt(context, onProgress);
     console.log(`[AIService] Prompt built, length: ${prompt.length} chars`);
@@ -192,27 +201,20 @@ export class AIService {
     
     try {
       console.log(`[AIService] Sending to Claude 3.5 Sonnet for content generation...`);
-      console.log(`[AIService] Target length: ${context.targetLength} pages, using up to ${Math.min(128000, (context.targetLength || 15) * 2500)} tokens`);
+      console.log(`[AIService] Using standard generation (8192 token limit)`);
       const startTime = Date.now();
       
-      const response = await anthropic.messages.create(
-        {
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: Math.min(128000, Math.max(8192, (context.targetLength || 15) * 2500)), // ~2500 tokens per page, max 128K
-          temperature: 0.1, // Near-deterministic for factual accuracy
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        },
-        {
-          headers: {
-            'anthropic-beta': 'output-128k-2025-02-19'
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192, // Current max for Claude 3.5 Sonnet
+        temperature: 0.1, // Near-deterministic for factual accuracy
+        messages: [
+          {
+            role: 'user',
+            content: prompt
           }
-        }
-      );
+        ]
+      });
 
       const duration = Date.now() - startTime;
       console.log(`[AIService] Claude 3.5 Sonnet responded in ${duration}ms`);
@@ -565,23 +567,24 @@ Generate these sections:
 
 8. NEXT_STEPS: Clear next steps and readiness statement (2-3 paragraphs)
 
-TARGET DOCUMENT LENGTH: ${context.targetLength || 15} pages (approximately ${(context.targetLength || 15) * 500} words)
+IMPORTANT: Generate comprehensive content within the 8192 token limit. Focus on quality and detail.
+
+TARGET LENGTH: Approximately ${context.targetLength || 15} pages of professional content.
 
 CRITICAL REQUIREMENTS:
-1. Generate EXTENSIVE, DETAILED content for EVERY section
-2. Each section MUST be multiple substantial paragraphs (minimum 3-4 paragraphs per section)
-3. Include specific examples, data, and details from ALL provided documents
-4. Add proper citations throughout [Source: filename]
-5. Expand on every point with explanations, benefits, and relevant context
-6. For a ${context.targetLength || 15}-page document, aim for approximately:
-   - Introduction: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
-   - Organization Background: ${Math.round((context.targetLength || 15) * 0.12 * 500)} words
-   - Project Scope: ${Math.round((context.targetLength || 15) * 0.12 * 500)} words
-   - Information Requested: ${Math.round((context.targetLength || 15) * 0.35 * 500)} words (LONGEST section)
-   - Vendor Qualifications: ${Math.round((context.targetLength || 15) * 0.15 * 500)} words
-   - Other sections: Proportionally detailed
+1. Generate DETAILED, SUBSTANTIVE content for each section
+2. Each section should be 2-4 well-developed paragraphs
+3. Include specific examples and data from provided documents
+4. Add proper citations throughout using [Source: filename]
+5. Focus on the most important sections:
+   - Introduction: Concise but compelling (1-2 paragraphs)
+   - Organization Background: Key strengths and experience (2-3 paragraphs)
+   - Project Scope: Clear understanding of requirements (2-3 paragraphs)
+   - Information Requested: Most detailed section (4-6 paragraphs with specific capabilities)
+   - Vendor Qualifications: Strong evidence of capability (2-3 paragraphs)
+   - Other sections: Professional but concise (1-2 paragraphs each)
 
-ABSOLUTELY NO SHORT SECTIONS. Every section must be comprehensive and detailed.
+Note: Due to token limits, content will be comprehensive but focused. For longer documents, additional generation may be needed.
 
 Make the content specific to VoIP/telecommunications based on the context provided. Be professional, comprehensive, and position us as the ideal vendor for their needs.
 
@@ -812,22 +815,23 @@ Generate these sections:
 
 12. TERMS_AND_CONDITIONS: Terms acknowledgment (1-2 paragraphs)
 
-TARGET DOCUMENT LENGTH: ${context.targetLength || 15} pages (approximately ${(context.targetLength || 15) * 500} words)
+IMPORTANT: Generate comprehensive content within the 8192 token limit. Focus on quality and detail.
+
+TARGET LENGTH: Approximately ${context.targetLength || 15} pages of professional content.
 
 CRITICAL REQUIREMENTS:
-1. Generate EXTENSIVE, DETAILED content for EVERY section
-2. Each section MUST be multiple substantial paragraphs (minimum 3-4 paragraphs per section)
-3. Include specific examples, data, and details from ALL provided documents
-4. Add proper citations throughout [Source: filename]
-5. Expand on every point with explanations, benefits, and relevant context
-6. For a ${context.targetLength || 15}-page document, aim for approximately:
-   - Executive Summary: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
-   - Company Overview: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
-   - Technical/Functional Requirements: ${Math.round((context.targetLength || 15) * 0.30 * 500)} words combined
-   - Implementation & Timeline: ${Math.round((context.targetLength || 15) * 0.20 * 500)} words combined
-   - Other sections: Proportionally detailed
+1. Generate DETAILED, SUBSTANTIVE content for each section
+2. Each section should be 2-3 well-developed paragraphs (more for technical sections)
+3. Include specific examples and data from provided documents
+4. Add proper citations throughout using [Source: filename]
+5. Prioritize key sections:
+   - Executive Summary: Compelling overview (2 paragraphs)
+   - Company Overview: Key strengths (2 paragraphs)
+   - Technical/Functional Requirements: Most detailed (3-4 paragraphs each)
+   - Implementation Approach: Clear methodology (2-3 paragraphs)
+   - Other sections: Professional but focused (1-2 paragraphs each)
 
-ABSOLUTELY NO SHORT SECTIONS. Every section must be comprehensive and detailed.
+Note: Due to token limits, content will be comprehensive but focused. For longer documents, additional generation may be needed.
 
 Make the content specific, detailed, and professional. Use the uploaded document context to make it as relevant and accurate as possible.
 
@@ -848,6 +852,193 @@ ANTI-HALLUCINATION RULES:
 - DO NOT reference documents that don't exist in the valid sources list
 - DO NOT make up statistics or numbers not found in the provided content
 - If specific information is not available, use general statements instead of making up specifics`;
+
+    return prompt;
+  }
+
+  private async generateRFIContentChunked(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    console.log(`[AIService] Using chunked generation for ${context.targetLength} page document`);
+    
+    const sections: Record<string, string> = {};
+    
+    // Generate in chunks
+    // Chunk 1: Introduction, Organization Background, Project Scope
+    if (onProgress) onProgress('Generating introduction sections...', 70);
+    const chunk1Sections = await this.generateRFIChunk(context, ['INTRODUCTION', 'ORGANIZATION_BACKGROUND', 'PROJECT_SCOPE'], onProgress);
+    Object.assign(sections, chunk1Sections);
+    
+    // Chunk 2: Information Requested (largest section)
+    if (onProgress) onProgress('Generating main content...', 80);
+    const chunk2Sections = await this.generateRFIChunk(context, ['INFORMATION_REQUESTED'], onProgress);
+    Object.assign(sections, chunk2Sections);
+    
+    // Chunk 3: Remaining sections
+    if (onProgress) onProgress('Generating final sections...', 90);
+    const chunk3Sections = await this.generateRFIChunk(context, ['VENDOR_QUALIFICATIONS', 'SUBMISSION_REQUIREMENTS', 'EVALUATION_CRITERIA', 'NEXT_STEPS'], onProgress);
+    Object.assign(sections, chunk3Sections);
+    
+    return sections;
+  }
+
+  private async generateRFIChunk(context: DocumentContext, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    const prompt = await this.buildRFIChunkPrompt(context, sectionNames);
+    
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192,
+        temperature: 0.1,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+      
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      return this.parseAIResponse(content);
+    } catch (error) {
+      console.error('[AIService] Chunk generation error:', error);
+      throw new Error(`Failed to generate RFI chunk for sections: ${sectionNames.join(', ')}`);
+    }
+  }
+
+  private async buildRFIChunkPrompt(context: DocumentContext, sectionNames: string[]): Promise<string> {
+    // Build a focused prompt for specific sections
+    let prompt = `You are helping create specific sections of a Request for Information (RFI) document for ${context.organizationName} regarding ${context.projectName}.
+
+Generate ONLY these sections with detailed, comprehensive content:
+${sectionNames.join(', ')}
+
+Context:
+`;
+
+    // Add minimal context (company info and key documents)
+    if (context.companyInfo) {
+      prompt += `\nCOMPANY INFO:
+Company: ${context.companyInfo.company_name}
+Description: ${context.companyInfo.description || 'Not specified'}
+Experience: ${context.companyInfo.experience || 'Not specified'}
+Services: ${context.companyInfo.services || 'Not specified'}
+`;
+    }
+
+    // Add section-specific instructions
+    const sectionInstructions: Record<string, string> = {
+      INTRODUCTION: 'Write a professional introduction acknowledging their RFI and expressing interest (2-3 paragraphs)',
+      ORGANIZATION_BACKGROUND: 'Provide detailed company background using ONLY provided facts (3-4 paragraphs)',
+      PROJECT_SCOPE: 'Demonstrate comprehensive understanding of requirements (3-4 paragraphs)',
+      INFORMATION_REQUESTED: 'Provide EXTENSIVE responses covering all capabilities, experience, technical specs (6-8 paragraphs)',
+      VENDOR_QUALIFICATIONS: 'Detail qualifications, certifications, and track record (3-4 paragraphs)',
+      SUBMISSION_REQUIREMENTS: 'Confirm compliance with requirements (2 paragraphs)',
+      EVALUATION_CRITERIA: 'Address each evaluation criterion (3-4 paragraphs)',
+      NEXT_STEPS: 'Express readiness and next steps (2 paragraphs)'
+    };
+
+    prompt += '\n\nGenerate these sections with the following requirements:\n';
+    sectionNames.forEach(section => {
+      prompt += `\n${section}: ${sectionInstructions[section] || 'Generate comprehensive content'}`;
+    });
+
+    prompt += '\n\nFormat: SECTION_NAME: [detailed content with citations]';
+    prompt += '\n\nIMPORTANT: Generate substantial, detailed content for each section. Include citations [Source: filename] where relevant.';
+
+    return prompt;
+  }
+
+  private async generateRFPContentChunked(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    console.log(`[AIService] Using chunked generation for ${context.targetLength} page RFP document`);
+    
+    const sections: Record<string, string> = {};
+    
+    // Generate in chunks for RFP (12 sections total)
+    // Chunk 1: Executive Summary, Company Overview, Project Background
+    if (onProgress) onProgress('Generating overview sections...', 70);
+    const chunk1Sections = await this.generateRFPChunk(context, ['EXECUTIVE_SUMMARY', 'COMPANY_OVERVIEW', 'PROJECT_BACKGROUND'], onProgress);
+    Object.assign(sections, chunk1Sections);
+    
+    // Chunk 2: Technical and Functional Requirements (largest sections)
+    if (onProgress) onProgress('Generating requirements sections...', 80);
+    const chunk2Sections = await this.generateRFPChunk(context, ['SCOPE_OF_WORK', 'TECHNICAL_REQUIREMENTS', 'FUNCTIONAL_REQUIREMENTS'], onProgress);
+    Object.assign(sections, chunk2Sections);
+    
+    // Chunk 3: Implementation and remaining sections
+    if (onProgress) onProgress('Generating implementation and final sections...', 90);
+    const chunk3Sections = await this.generateRFPChunk(context, ['IMPLEMENTATION_APPROACH', 'TIMELINE_AND_MILESTONES', 'PRICING_STRUCTURE', 'EVALUATION_CRITERIA', 'SUBMISSION_INSTRUCTIONS', 'TERMS_AND_CONDITIONS'], onProgress);
+    Object.assign(sections, chunk3Sections);
+    
+    return sections;
+  }
+
+  private async generateRFPChunk(context: DocumentContext, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    const prompt = await this.buildRFPChunkPrompt(context, sectionNames);
+    
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192,
+        temperature: 0.1,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+      
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      return this.parseAIResponse(content);
+    } catch (error) {
+      console.error('[AIService] RFP chunk generation error:', error);
+      throw new Error(`Failed to generate RFP chunk for sections: ${sectionNames.join(', ')}`);
+    }
+  }
+
+  private async buildRFPChunkPrompt(context: DocumentContext, sectionNames: string[]): Promise<string> {
+    // Build a focused prompt for specific RFP sections
+    let prompt = `You are helping create specific sections of a Request for Proposal (RFP) response for ${context.organizationName} regarding ${context.projectName}.
+
+Generate ONLY these sections with detailed, comprehensive content:
+${sectionNames.join(', ')}
+
+Context:
+`;
+
+    // Add company info
+    if (context.companyInfo) {
+      prompt += `\nCOMPANY INFO:
+Company: ${context.companyInfo.company_name}
+Description: ${context.companyInfo.description || 'Not specified'}
+Services: ${context.companyInfo.services || 'Not specified'}
+Capabilities: ${context.companyInfo.capabilities || 'Not specified'}
+Differentiators: ${context.companyInfo.differentiators || 'Not specified'}
+`;
+    }
+
+    // Add section-specific instructions
+    const sectionInstructions: Record<string, string> = {
+      EXECUTIVE_SUMMARY: 'Write compelling executive summary demonstrating understanding (2-3 paragraphs)',
+      COMPANY_OVERVIEW: 'Detailed company overview using ONLY provided facts (3 paragraphs)',
+      PROJECT_BACKGROUND: 'Demonstrate understanding of project and challenges (3 paragraphs)',
+      SCOPE_OF_WORK: 'Detail approach to meeting requirements (4 paragraphs)',
+      TECHNICAL_REQUIREMENTS: 'Explain how solution meets technical requirements (4-5 paragraphs)',
+      FUNCTIONAL_REQUIREMENTS: 'Detail functional requirements coverage (4-5 paragraphs)',
+      IMPLEMENTATION_APPROACH: 'Present methodology and phases (3 paragraphs)',
+      TIMELINE_AND_MILESTONES: 'Provide timeline with milestones (2-3 paragraphs)',
+      PRICING_STRUCTURE: 'Present pricing approach (2 paragraphs)',
+      EVALUATION_CRITERIA: 'Address evaluation criteria (3 paragraphs)',
+      SUBMISSION_INSTRUCTIONS: 'Confirm compliance (1-2 paragraphs)',
+      TERMS_AND_CONDITIONS: 'Acknowledge terms (1-2 paragraphs)'
+    };
+
+    prompt += '\n\nGenerate these sections with the following requirements:\n';
+    sectionNames.forEach(section => {
+      prompt += `\n${section}: ${sectionInstructions[section] || 'Generate comprehensive content'}`;
+    });
+
+    prompt += '\n\nFormat: SECTION_NAME: [detailed content with citations]';
+    prompt += '\n\nIMPORTANT: Generate substantial, detailed content for each section. Include citations [Source: filename] where relevant.';
 
     return prompt;
   }
