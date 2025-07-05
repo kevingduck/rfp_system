@@ -969,7 +969,7 @@ export default function ProjectPage() {
                 ) : (
                   <>
                     <Download className="mr-2 h-5 w-5" />
-                    {draftData ? 'Regenerate' : 'Generate ' + (project?.project_type || '')}
+                    {draftData ? 'Regenerate' : 'Generate '} {project?.project_type === 'RFI' ? 'Response' : project?.project_type || ''}
                   </>
                 )}
                 </Button>

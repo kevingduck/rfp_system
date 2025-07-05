@@ -37,6 +37,8 @@ Key directories:
 - `/src/lib/` - Core business logic for AI, document parsing, database, and generation
 - `/src/pages/api/` - API endpoints for all backend operations
 - `/uploads/` - Local file storage for uploaded documents
+- `/exports/` - Generated RFP/RFI documents
+- `/migrations/` - Database schema migrations
 
 ### Database Schema
 PostgreSQL tables include:
@@ -46,7 +48,9 @@ PostgreSQL tables include:
 - `web_sources` - Scraped web content with summaries
 - `rfi_questions` - Questions for RFI projects
 - `company_knowledge` - Reusable knowledge base documents
-- `drafts` - Generated document drafts
+- `drafts` - Generated document drafts with versioning
+- `draft_revisions` - Version history tracking
+- `project_activity` - Audit log for project actions
 
 ### Key APIs and Integration Points
 
@@ -67,6 +71,13 @@ PostgreSQL tables include:
 - Scraper: `/src/lib/web-scraper.ts` using Cheerio
 - Respects robots.txt, extracts and summarizes content
 
+### Database Access Pattern
+The codebase uses a PostgreSQL abstraction layer (`/src/lib/pg-db.ts`) that:
+- Provides SQLite-compatible API methods (all, run, get)
+- Automatically converts parameter placeholders (? → $1, $2, etc.)
+- Handles connection pooling and SSL for production
+- Simplifies migration from SQLite
+
 ### Deployment Notes
 - Platform: Render (web service)
 - Build command runs `init-pg-db.js` first to ensure schema exists
@@ -79,3 +90,4 @@ PostgreSQL tables include:
 - Excel parsing extracts all sheets and attempts to identify pricing/timeline data
 - The RFP Wizard (`/src/components/RFPWizard.tsx`) provides step-by-step guidance
 - Chat Assistant uses conversation history for context-aware help
+- When modifying database queries, maintain SQLite-style syntax (the abstraction layer handles conversion)

@@ -99,7 +99,7 @@ export class AIService {
       
       const response = await anthropic.messages.create({
         model: 'claude-3-opus-20240229',
-        max_tokens: 4000,
+        max_tokens: Math.min(50000, Math.max(4000, (context.targetLength || 15) * 1000)), // ~1000 tokens per page, max 50k
         temperature: 0.1, // Near-deterministic for factual accuracy
         messages: [
           {
@@ -181,7 +181,7 @@ export class AIService {
       
       const response = await anthropic.messages.create({
         model: 'claude-3-opus-20240229',
-        max_tokens: 4000,
+        max_tokens: Math.min(50000, Math.max(4000, (context.targetLength || 15) * 1000)), // ~1000 tokens per page, max 50k
         temperature: 0.1, // Near-deterministic for factual accuracy
         messages: [
           {
@@ -540,10 +540,27 @@ SECTION_NAME: [content]
 SECTION_NAME: [content]
 etc.
 
-TARGET LENGTH: The final document should be approximately ${context.targetLength || 15} pages long. Adjust the detail level of each section accordingly:
-- For shorter documents (5-10 pages): Be concise but comprehensive, focus on key points
-- For medium documents (10-20 pages): Include more detail, examples, and explanations
-- For longer documents (20-50 pages): Be thorough, include extensive detail, case studies, and comprehensive coverage
+TARGET LENGTH: The final document MUST be approximately ${context.targetLength || 15} pages long. This is a STRICT requirement.
+
+IMPORTANT LENGTH GUIDELINES:
+- Each page typically contains 400-500 words
+- A ${context.targetLength || 15}-page document should contain ${(context.targetLength || 15) * 450} words total
+- Distribute content proportionally across all sections
+- For a ${context.targetLength || 15}-page document, approximate section lengths:
+  * Introduction: ${Math.round((context.targetLength || 15) * 0.05)} pages
+  * Organization Background: ${Math.round((context.targetLength || 15) * 0.10)} pages  
+  * Project Scope: ${Math.round((context.targetLength || 15) * 0.10)} pages
+  * Information Requested: ${Math.round((context.targetLength || 15) * 0.35)} pages (largest section)
+  * Vendor Qualifications: ${Math.round((context.targetLength || 15) * 0.15)} pages
+  * Submission Requirements: ${Math.round((context.targetLength || 15) * 0.10)} pages
+  * Evaluation Criteria: ${Math.round((context.targetLength || 15) * 0.10)} pages
+  * Next Steps: ${Math.round((context.targetLength || 15) * 0.05)} pages
+
+Adjust detail level based on target length:
+- For 5-10 pages: Be concise, focus on key points only
+- For 10-20 pages: Include moderate detail, examples, and explanations
+- For 20-30 pages: Be comprehensive with extensive detail, multiple examples, case studies
+- For 30-50 pages: Maximum detail, include extensive case studies, detailed technical specifications, comprehensive appendices
 
 Make the content specific to VoIP/telecommunications based on the context provided. Be professional, comprehensive, and position us as the ideal vendor for their needs.
 
@@ -772,10 +789,31 @@ SECTION_NAME: [content]
 SECTION_NAME: [content]
 etc.
 
-TARGET LENGTH: The final document should be approximately ${context.targetLength || 15} pages long. Adjust the detail level of each section accordingly:
-- For shorter documents (5-10 pages): Be concise but comprehensive, focus on key points
-- For medium documents (10-20 pages): Include more detail, examples, and explanations
-- For longer documents (20-50 pages): Be thorough, include extensive detail, case studies, and comprehensive coverage
+TARGET LENGTH: The final document MUST be approximately ${context.targetLength || 15} pages long. This is a STRICT requirement.
+
+IMPORTANT LENGTH GUIDELINES:
+- Each page typically contains 400-500 words
+- A ${context.targetLength || 15}-page document should contain ${(context.targetLength || 15) * 450} words total
+- Distribute content proportionally across all sections
+- For a ${context.targetLength || 15}-page document, approximate section lengths:
+  * Executive Summary: ${Math.round((context.targetLength || 15) * 0.08)} pages
+  * Company Overview: ${Math.round((context.targetLength || 15) * 0.08)} pages  
+  * Project Background: ${Math.round((context.targetLength || 15) * 0.08)} pages
+  * Scope of Work: ${Math.round((context.targetLength || 15) * 0.15)} pages
+  * Technical Requirements: ${Math.round((context.targetLength || 15) * 0.12)} pages
+  * Functional Requirements: ${Math.round((context.targetLength || 15) * 0.12)} pages
+  * Implementation Approach: ${Math.round((context.targetLength || 15) * 0.10)} pages
+  * Timeline & Milestones: ${Math.round((context.targetLength || 15) * 0.08)} pages
+  * Pricing Structure: ${Math.round((context.targetLength || 15) * 0.08)} pages
+  * Evaluation Criteria: ${Math.round((context.targetLength || 15) * 0.06)} pages
+  * Submission Instructions: ${Math.round((context.targetLength || 15) * 0.03)} pages
+  * Terms & Conditions: ${Math.round((context.targetLength || 15) * 0.02)} pages
+
+Adjust detail level based on target length:
+- For 5-10 pages: Be concise, focus on key points only
+- For 10-20 pages: Include moderate detail, examples, and explanations
+- For 20-30 pages: Be comprehensive with extensive detail, multiple examples, case studies
+- For 30-50 pages: Maximum detail, include extensive case studies, detailed technical specifications, comprehensive appendices
 
 Make the content specific, detailed, and professional. Use the uploaded document context to make it as relevant and accurate as possible.
 
@@ -983,7 +1021,7 @@ Extract and answer ALL questions found in the document.`;
     try {
       const response = await anthropic.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 4000,
+        max_tokens: 8000,
         temperature: 0.3,
         messages: [
           {
@@ -1217,7 +1255,7 @@ Be specific, professional, and reference information from the documents where re
 
       const response = await anthropic.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 4000,
+        max_tokens: 8000,
         temperature: 0.3,
         messages: [
           {
