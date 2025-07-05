@@ -7,12 +7,11 @@ const anthropic = new Anthropic({
 });
 
 // Model Selection Strategy:
-// - Claude Sonnet 4: Used for RFI/RFP generation (64K max output tokens = ~48K words)
-// - Claude 3.5 Sonnet: Used for question extraction and answer generation (8K max output)
-// Model limits as of 2025:
-// - Claude Opus 4: 200K context, 32K output (~24K words)
-// - Claude Sonnet 4: 200K context, 64K output (~48K words) - BEST for long documents
-// - Claude 3.5 Sonnet: 200K context, 8K output (~6.2K words)
+// - Claude 3.5 Sonnet: Used for RFI/RFP generation with 128K output tokens (beta)
+//   - Up to 64K tokens is GA, 64K-128K is beta
+//   - Requires 'output-128k-2025-02-19' beta header
+//   - Can generate ~100 pages in a single response
+// - Claude 3.5 Sonnet: Also used for question extraction and answer generation
 
 interface DocumentContext {
   projectType: 'RFI' | 'RFP';
@@ -102,23 +101,31 @@ export class AIService {
     if (onProgress) onProgress('Sending to AI for generation...', 75);
     
     try {
-      console.log(`[AIService] Sending to Claude Sonnet 4 for content generation (64K max output)...`);
+      console.log(`[AIService] Sending to Claude 3.5 Sonnet for content generation...`);
+      console.log(`[AIService] Target length: ${context.targetLength} pages, using up to ${Math.min(128000, (context.targetLength || 15) * 2500)} tokens`);
       const startTime = Date.now();
       
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514', // Using Sonnet 4 for 64K max output tokens
-        max_tokens: Math.min(64000, Math.max(8000, (context.targetLength || 15) * 1500)), // ~1500 tokens per page, max 64k
-        temperature: 0.1, // Near-deterministic for factual accuracy
-        messages: [
-          {
-            role: 'user',
-            content: prompt
+      const response = await anthropic.messages.create(
+        {
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: Math.min(128000, Math.max(8192, (context.targetLength || 15) * 2500)), // ~2500 tokens per page, max 128K
+          temperature: 0.1, // Near-deterministic for factual accuracy
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        },
+        {
+          headers: {
+            'anthropic-beta': 'output-128k-2025-02-19'
           }
-        ]
-      });
+        }
+      );
 
       const duration = Date.now() - startTime;
-      console.log(`[AIService] Claude Sonnet 4 responded in ${duration}ms`);
+      console.log(`[AIService] Claude 3.5 Sonnet responded in ${duration}ms`);
       
       const content = response.content[0].type === 'text' ? response.content[0].text : '';
       console.log(`[AIService] Raw AI response preview: ${content.substring(0, 200)}...`);
@@ -184,23 +191,31 @@ export class AIService {
     if (onProgress) onProgress('Sending to AI for generation...', 75);
     
     try {
-      console.log(`[AIService] Sending to Claude Sonnet 4 for content generation (64K max output)...`);
+      console.log(`[AIService] Sending to Claude 3.5 Sonnet for content generation...`);
+      console.log(`[AIService] Target length: ${context.targetLength} pages, using up to ${Math.min(128000, (context.targetLength || 15) * 2500)} tokens`);
       const startTime = Date.now();
       
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514', // Using Sonnet 4 for 64K max output tokens
-        max_tokens: Math.min(64000, Math.max(8000, (context.targetLength || 15) * 1500)), // ~1500 tokens per page, max 64k
-        temperature: 0.1, // Near-deterministic for factual accuracy
-        messages: [
-          {
-            role: 'user',
-            content: prompt
+      const response = await anthropic.messages.create(
+        {
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: Math.min(128000, Math.max(8192, (context.targetLength || 15) * 2500)), // ~2500 tokens per page, max 128K
+          temperature: 0.1, // Near-deterministic for factual accuracy
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        },
+        {
+          headers: {
+            'anthropic-beta': 'output-128k-2025-02-19'
           }
-        ]
-      });
+        }
+      );
 
       const duration = Date.now() - startTime;
-      console.log(`[AIService] Claude Sonnet 4 responded in ${duration}ms`);
+      console.log(`[AIService] Claude 3.5 Sonnet responded in ${duration}ms`);
       
       const content = response.content[0].type === 'text' ? response.content[0].text : '';
       console.log(`[AIService] Raw AI response preview: ${content.substring(0, 200)}...`);
@@ -525,50 +540,48 @@ ${context.companyInfo ? `
 - Description: ${context.companyInfo.description || 'Not specified'}
 ` : 'No company information provided'}
 
-Please help generate DRAFT content for the following sections that could be used in preparing a response:
+Please help generate comprehensive DRAFT content for an RFI response. 
 
-1. INTRODUCTION: Write a professional introduction acknowledging their RFI and expressing our interest in providing information about our solutions.
-
-2. ORGANIZATION_BACKGROUND: Provide background about ${context.companyInfo?.company_name || 'our company'}, highlighting our expertise, market position, and why we're well-suited to address their needs. USE ONLY THE COMPANY FACTS PROVIDED ABOVE.
-
-3. PROJECT_SCOPE: Demonstrate our understanding of their requirements and how our capabilities align with what they're seeking to accomplish.
-
-4. INFORMATION_REQUESTED: Provide comprehensive responses to the information they've requested, including our capabilities, experience, technical specifications, and approach.
-
-5. VENDOR_QUALIFICATIONS: Detail our qualifications, certifications, experience, and track record that make us a strong potential partner.
-
-6. SUBMISSION_REQUIREMENTS: Confirm our compliance with their submission requirements and provide all requested documentation and information.
-
-7. EVALUATION_CRITERIA: Address how we meet or exceed their evaluation criteria, highlighting our strengths in each area.
-
-8. NEXT_STEPS: Express our readiness to move forward, provide additional information, participate in demos, or advance to the RFP stage.
+CRITICAL: Generate DETAILED, SUBSTANTIVE content for each section. Each section should be multiple paragraphs with specific examples, details, and relevant information from the provided documents.
 
 Format your response as:
-SECTION_NAME: [content]
-SECTION_NAME: [content]
-etc.
+SECTION_NAME: [detailed multi-paragraph content with citations]
 
-TARGET LENGTH: The final document MUST be approximately ${context.targetLength || 15} pages long. This is a STRICT requirement.
+Generate these sections:
 
-IMPORTANT LENGTH GUIDELINES:
-- Each page typically contains 400-500 words
-- A ${context.targetLength || 15}-page document should contain ${(context.targetLength || 15) * 450} words total
-- Distribute content proportionally across all sections
-- For a ${context.targetLength || 15}-page document, approximate section lengths:
-  * Introduction: ${Math.round((context.targetLength || 15) * 0.05)} pages
-  * Organization Background: ${Math.round((context.targetLength || 15) * 0.10)} pages  
-  * Project Scope: ${Math.round((context.targetLength || 15) * 0.10)} pages
-  * Information Requested: ${Math.round((context.targetLength || 15) * 0.35)} pages (largest section)
-  * Vendor Qualifications: ${Math.round((context.targetLength || 15) * 0.15)} pages
-  * Submission Requirements: ${Math.round((context.targetLength || 15) * 0.10)} pages
-  * Evaluation Criteria: ${Math.round((context.targetLength || 15) * 0.10)} pages
-  * Next Steps: ${Math.round((context.targetLength || 15) * 0.05)} pages
+1. INTRODUCTION: Professional introduction (2-3 paragraphs)
 
-Adjust detail level based on target length:
-- For 5-10 pages: Be concise, focus on key points only
-- For 10-20 pages: Include moderate detail, examples, and explanations
-- For 20-30 pages: Be comprehensive with extensive detail, multiple examples, case studies
-- For 30-50 pages: Maximum detail, include extensive case studies, detailed technical specifications, comprehensive appendices
+2. ORGANIZATION_BACKGROUND: Detailed company background using ONLY the provided facts (3-4 paragraphs)
+
+3. PROJECT_SCOPE: Comprehensive understanding of requirements (3-4 paragraphs)
+
+4. INFORMATION_REQUESTED: Detailed responses to all aspects mentioned in the RFI (this should be your LONGEST section - 5-8 paragraphs covering capabilities, experience, technical specs, approach)
+
+5. VENDOR_QUALIFICATIONS: Thorough coverage of qualifications and experience (3-4 paragraphs)
+
+6. SUBMISSION_REQUIREMENTS: Complete compliance confirmation (2-3 paragraphs)
+
+7. EVALUATION_CRITERIA: Detailed response to each evaluation criterion (3-4 paragraphs)
+
+8. NEXT_STEPS: Clear next steps and readiness statement (2-3 paragraphs)
+
+TARGET DOCUMENT LENGTH: ${context.targetLength || 15} pages (approximately ${(context.targetLength || 15) * 500} words)
+
+CRITICAL REQUIREMENTS:
+1. Generate EXTENSIVE, DETAILED content for EVERY section
+2. Each section MUST be multiple substantial paragraphs (minimum 3-4 paragraphs per section)
+3. Include specific examples, data, and details from ALL provided documents
+4. Add proper citations throughout [Source: filename]
+5. Expand on every point with explanations, benefits, and relevant context
+6. For a ${context.targetLength || 15}-page document, aim for approximately:
+   - Introduction: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
+   - Organization Background: ${Math.round((context.targetLength || 15) * 0.12 * 500)} words
+   - Project Scope: ${Math.round((context.targetLength || 15) * 0.12 * 500)} words
+   - Information Requested: ${Math.round((context.targetLength || 15) * 0.35 * 500)} words (LONGEST section)
+   - Vendor Qualifications: ${Math.round((context.targetLength || 15) * 0.15 * 500)} words
+   - Other sections: Proportionally detailed
+
+ABSOLUTELY NO SHORT SECTIONS. Every section must be comprehensive and detailed.
 
 Make the content specific to VoIP/telecommunications based on the context provided. Be professional, comprehensive, and position us as the ideal vendor for their needs.
 
@@ -766,62 +779,55 @@ ${context.companyInfo ? `
 - Certifications: ${context.companyInfo.certifications || 'Not specified'}
 ` : 'No company information provided'}
 
-Please help generate DRAFT content for the following sections that could be used in preparing a proposal:
+Please help generate comprehensive DRAFT content for an RFP response.
 
-1. EXECUTIVE_SUMMARY: Write a compelling executive summary that demonstrates our understanding of their needs and how our solution addresses them.
-
-2. COMPANY_OVERVIEW: Provide a detailed overview of ${context.companyInfo?.company_name || 'our company'}, highlighting our experience, capabilities, and why we're the best choice for this project. USE ONLY THE COMPANY FACTS PROVIDED ABOVE.
-
-3. PROJECT_BACKGROUND: Demonstrate our understanding of their project, challenges, and objectives based on the RFP documents.
-
-4. SCOPE_OF_WORK: Detail our proposed approach to meeting all requirements and specifications outlined in their RFP.
-
-5. TECHNICAL_REQUIREMENTS: Explain how our solution meets or exceeds each technical requirement they've specified.
-
-6. FUNCTIONAL_REQUIREMENTS: Detail how our solution addresses each functional requirement and feature they need.
-
-7. IMPLEMENTATION_APPROACH: Present our proven implementation methodology, project phases, and approach to minimize disruption.
-
-8. TIMELINE_AND_MILESTONES: Provide our proposed timeline with key milestones and deliverables.
-
-9. PRICING_STRUCTURE: Present our competitive pricing proposal with clear cost breakdowns as requested in their RFP.
-
-10. EVALUATION_CRITERIA: Address each of their evaluation criteria and explain why we excel in each area.
-
-11. SUBMISSION_INSTRUCTIONS: Confirm our compliance with their submission requirements.
-
-12. TERMS_AND_CONDITIONS: Acknowledge and address their terms while proposing any necessary modifications.
+CRITICAL: Generate DETAILED, SUBSTANTIVE content for each section. Each section should be multiple paragraphs with specific examples, details, and relevant information from the provided documents.
 
 Format your response as:
-SECTION_NAME: [content]
-SECTION_NAME: [content]
-etc.
+SECTION_NAME: [detailed multi-paragraph content with citations]
 
-TARGET LENGTH: The final document MUST be approximately ${context.targetLength || 15} pages long. This is a STRICT requirement.
+Generate these sections:
 
-IMPORTANT LENGTH GUIDELINES:
-- Each page typically contains 400-500 words
-- A ${context.targetLength || 15}-page document should contain ${(context.targetLength || 15) * 450} words total
-- Distribute content proportionally across all sections
-- For a ${context.targetLength || 15}-page document, approximate section lengths:
-  * Executive Summary: ${Math.round((context.targetLength || 15) * 0.08)} pages
-  * Company Overview: ${Math.round((context.targetLength || 15) * 0.08)} pages  
-  * Project Background: ${Math.round((context.targetLength || 15) * 0.08)} pages
-  * Scope of Work: ${Math.round((context.targetLength || 15) * 0.15)} pages
-  * Technical Requirements: ${Math.round((context.targetLength || 15) * 0.12)} pages
-  * Functional Requirements: ${Math.round((context.targetLength || 15) * 0.12)} pages
-  * Implementation Approach: ${Math.round((context.targetLength || 15) * 0.10)} pages
-  * Timeline & Milestones: ${Math.round((context.targetLength || 15) * 0.08)} pages
-  * Pricing Structure: ${Math.round((context.targetLength || 15) * 0.08)} pages
-  * Evaluation Criteria: ${Math.round((context.targetLength || 15) * 0.06)} pages
-  * Submission Instructions: ${Math.round((context.targetLength || 15) * 0.03)} pages
-  * Terms & Conditions: ${Math.round((context.targetLength || 15) * 0.02)} pages
+1. EXECUTIVE_SUMMARY: Compelling summary demonstrating understanding (3-4 paragraphs)
 
-Adjust detail level based on target length:
-- For 5-10 pages: Be concise, focus on key points only
-- For 10-20 pages: Include moderate detail, examples, and explanations
-- For 20-30 pages: Be comprehensive with extensive detail, multiple examples, case studies
-- For 30-50 pages: Maximum detail, include extensive case studies, detailed technical specifications, comprehensive appendices
+2. COMPANY_OVERVIEW: Detailed company overview using ONLY provided facts (3-4 paragraphs)
+
+3. PROJECT_BACKGROUND: Comprehensive understanding of project and challenges (3-4 paragraphs)
+
+4. SCOPE_OF_WORK: Detailed approach to requirements (4-5 paragraphs)
+
+5. TECHNICAL_REQUIREMENTS: Thorough technical solution details (4-5 paragraphs)
+
+6. FUNCTIONAL_REQUIREMENTS: Complete functional coverage (4-5 paragraphs)
+
+7. IMPLEMENTATION_APPROACH: Detailed methodology and phases (3-4 paragraphs)
+
+8. TIMELINE_AND_MILESTONES: Comprehensive timeline (2-3 paragraphs)
+
+9. PRICING_STRUCTURE: Detailed pricing approach (2-3 paragraphs)
+
+10. EVALUATION_CRITERIA: Response to each criterion (3-4 paragraphs)
+
+11. SUBMISSION_INSTRUCTIONS: Compliance confirmation (1-2 paragraphs)
+
+12. TERMS_AND_CONDITIONS: Terms acknowledgment (1-2 paragraphs)
+
+TARGET DOCUMENT LENGTH: ${context.targetLength || 15} pages (approximately ${(context.targetLength || 15) * 500} words)
+
+CRITICAL REQUIREMENTS:
+1. Generate EXTENSIVE, DETAILED content for EVERY section
+2. Each section MUST be multiple substantial paragraphs (minimum 3-4 paragraphs per section)
+3. Include specific examples, data, and details from ALL provided documents
+4. Add proper citations throughout [Source: filename]
+5. Expand on every point with explanations, benefits, and relevant context
+6. For a ${context.targetLength || 15}-page document, aim for approximately:
+   - Executive Summary: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
+   - Company Overview: ${Math.round((context.targetLength || 15) * 0.08 * 500)} words
+   - Technical/Functional Requirements: ${Math.round((context.targetLength || 15) * 0.30 * 500)} words combined
+   - Implementation & Timeline: ${Math.round((context.targetLength || 15) * 0.20 * 500)} words combined
+   - Other sections: Proportionally detailed
+
+ABSOLUTELY NO SHORT SECTIONS. Every section must be comprehensive and detailed.
 
 Make the content specific, detailed, and professional. Use the uploaded document context to make it as relevant and accurate as possible.
 
