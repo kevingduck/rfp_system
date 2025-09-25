@@ -100,7 +100,7 @@ ${content}`;
       while (retries < maxRetries) {
         try {
           response = await groq.chat.completions.create({
-            model: 'llama3-70b-8192',
+            model: 'llama-3.3-70b-versatile',
             max_tokens: 2000,
             temperature: 0.3,
             messages: [{
@@ -170,7 +170,7 @@ Provide a concise summary (max 300 words):`;
         while (retries < maxRetries) {
           try {
             response = await groq.chat.completions.create({
-              model: 'llama3-70b-8192',
+              model: 'llama-3.3-70b-versatile',
               max_tokens: 500,
               temperature: 0.3,
               messages: [{
@@ -235,7 +235,7 @@ ${combinedSummary}`;
       while (retries < maxRetries) {
         try {
           response = await groq.chat.completions.create({
-            model: 'llama3-70b-8192',
+            model: 'llama-3.3-70b-versatile',
             max_tokens: 2000,
             temperature: 0.3,
             messages: [{
