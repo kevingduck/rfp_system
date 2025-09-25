@@ -45,8 +45,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate the Form 470 response
     const docBuffer = await generator.generateForm470Response(chatContext);
 
-    // Save the generated document
-    const exportsDir = path.join(process.cwd(), 'exports');
+    // Save the generated document to temp dir in production
+    const exportsDir = process.env.NODE_ENV === 'production'
+      ? path.join('/tmp', 'exports')
+      : path.join(process.cwd(), 'exports');
     await fs.mkdir(exportsDir, { recursive: true });
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

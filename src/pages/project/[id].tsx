@@ -440,13 +440,26 @@ export default function ProjectPage() {
         }
       }
       
+      // Refresh documents from server to ensure consistency
+      await fetchDocuments();
+
       // Show results
       if (failedUploads.length > 0) {
         alert(`Upload completed with errors:\n\nSuccessful: ${fileArray.length - failedUploads.length} files\nFailed: ${failedUploads.join(', ')}`);
-      } else if (fileArray.length > 1) {
-        alert(`Successfully uploaded ${fileArray.length} files`);
+      } else {
+        // Success message for all uploads
+        const successMessage = fileArray.length === 1
+          ? `Successfully uploaded ${fileArray[0].name}`
+          : `Successfully uploaded ${fileArray.length} files`;
+
+        // For Form 470s, add extraction note
+        if (project?.project_type === 'FORM_470' && fileArray.some(f => f.name.includes('470'))) {
+          alert(`${successMessage}\n\nForm 470 details are being extracted. You can now proceed to the next step.`);
+        } else {
+          alert(successMessage);
+        }
       }
-      
+
     } catch (error) {
       console.error('Upload failed:', error);
       alert('Upload failed. Please try again with fewer files.');

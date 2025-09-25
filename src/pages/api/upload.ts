@@ -18,7 +18,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const uploadDir = path.join(process.cwd(), 'uploads');
+  // Use temp directory on production, local uploads dir in development
+  const uploadDir = process.env.NODE_ENV === 'production'
+    ? path.join('/tmp', 'uploads')
+    : path.join(process.cwd(), 'uploads');
+
+  // Ensure the directory exists
   await fs.mkdir(uploadDir, { recursive: true });
 
   const form = formidable({
