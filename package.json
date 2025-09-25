@@ -49,13 +49,13 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.3.3",
     "uuid": "^9.0.1",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
+    "xlsx": "^0.18.5",
     "autoprefixer": "^10.4.16",
-    "eslint": "8.56.0",
-    "eslint-config-next": "14.0.4",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "eslint": "8.56.0",
+    "eslint-config-next": "14.0.4"
   }
 }
