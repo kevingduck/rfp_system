@@ -21,8 +21,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     const project = projectResult.rows[0];
     
-    if (!project || project.project_type !== 'RFI') {
-      return res.status(400).json({ error: 'Invalid RFI project' });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Support RFI and Form 470 projects (not RFP)
+    if (project.project_type === 'RFP') {
+      return res.status(400).json({ error: 'Question extraction is for RFI and Form 470 projects only' });
     }
     
     // Get the main document
@@ -41,13 +46,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const documents = allDocsResult.rows;
       
       if (documents.length === 0) {
-        return res.status(400).json({ error: 'No documents uploaded. Please upload the RFI/RFP document first.' });
+        const docType = project.project_type === 'FORM_470' ? 'Form 470' : 'RFI/RFP';
+        return res.status(400).json({ error: `No documents uploaded. Please upload the ${docType} document first.` });
       }
-      
-      // Find document with RFI/RFP in filename or use first
-      mainDocument = documents.find(doc => 
-        doc.filename?.toLowerCase().includes('rfi') || 
-        doc.filename?.toLowerCase().includes('rfp')
+
+      // Find document with RFI/RFP/470 in filename or use first
+      mainDocument = documents.find(doc =>
+        doc.filename?.toLowerCase().includes('rfi') ||
+        doc.filename?.toLowerCase().includes('rfp') ||
+        doc.filename?.toLowerCase().includes('470')
       ) || documents[0];
       
       // Set it as main for future use
@@ -107,7 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ 
       error: 'Failed to generate smart questions',
       details: errorMessage,
-      hint: 'Make sure you have uploaded an RFI/RFP document and have company knowledge configured.'
+      hint: `Make sure you have uploaded ${project.project_type === 'FORM_470' ? 'a Form 470' : 'an RFI/RFP'} document and have company knowledge configured.`
     });
   }
 }
