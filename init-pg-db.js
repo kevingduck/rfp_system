@@ -1,7 +1,11 @@
 const { Pool } = require('pg');
 
-// Always use the full connection string directly
-const connectionString = 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
+// Use environment variable or fallback to hardcoded for local development
+const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_dCvligO3L1wn@ep-falling-wildflower-a8kgw5zi-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
+
+if (!process.env.DATABASE_URL) {
+  console.log('Warning: DATABASE_URL not set, using hardcoded connection string');
+}
 
 console.log('Connecting to Neon database...');
 
