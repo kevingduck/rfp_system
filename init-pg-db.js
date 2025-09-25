@@ -39,7 +39,7 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        project_type TEXT CHECK(project_type IN ('RFI', 'RFP')) NOT NULL DEFAULT 'RFP',
+        project_type TEXT CHECK(project_type IN ('RFI', 'RFP', 'FORM_470')) NOT NULL DEFAULT 'RFP',
         organization_id TEXT,
         description TEXT,
         status TEXT DEFAULT 'active',
@@ -179,6 +179,26 @@ async function initializeDatabase() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS form_470_details (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL UNIQUE,
+        funding_year TEXT,
+        application_number TEXT,
+        service_category TEXT,
+        discount_percentage INTEGER,
+        student_population INTEGER,
+        nslp_percentage DECIMAL(5,2),
+        bid_deadline DATE,
+        service_start_date DATE,
+        installation_deadline DATE,
+        extracted_data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    `);
+
     console.log('Creating indexes...');
     
     // Add is_main_document column if it doesn't exist (must be done before creating index)
@@ -254,11 +274,23 @@ async function initializeDatabase() {
     `);
 
     console.log('Applying schema fixes...');
-    
+
     // Add missing columns if tables already exist
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
     await client.query(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS type TEXT`);
+
+    // Update existing project_type constraint to include FORM_470
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_project_type_check;
+        ALTER TABLE projects ADD CONSTRAINT projects_project_type_check
+          CHECK (project_type IN ('RFI', 'RFP', 'FORM_470'));
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
     
     // Fix documents table
     await client.query(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_path TEXT`);

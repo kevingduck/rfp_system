@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Project name and type are required' });
         }
         
-        if (!['RFI', 'RFP'].includes(projectType)) {
+        if (!['RFI', 'RFP', 'FORM_470'].includes(projectType)) {
           return res.status(400).json({ error: 'Invalid project type' });
         }
 

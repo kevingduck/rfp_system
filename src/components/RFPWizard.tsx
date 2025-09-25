@@ -24,7 +24,7 @@ interface ChatMessage {
 
 interface WizardProps {
   projectId: string;
-  projectType: 'RFI' | 'RFP';
+  projectType: 'RFI' | 'RFP' | 'FORM_470';
   documents: any[];
   webSources: any[];
   onDocumentUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -49,7 +49,36 @@ export function RFPWizard({
   const [showReview, setShowReview] = useState(false);
   const [urlInput, setUrlInput] = useState('');
 
-  const steps: WizardStep[] = [
+  const steps: WizardStep[] = projectType === 'FORM_470' ? [
+    {
+      id: 'upload',
+      title: 'Upload Form 470',
+      description: 'Upload the Form 470 PDF from USAC or the school/library',
+      icon: <Upload className="h-6 w-6" />,
+      type: 'upload'
+    },
+    {
+      id: 'context',
+      title: 'E-rate Qualifications',
+      description: 'Add your SPIN, E-rate references, and past implementations',
+      icon: <Award className="h-6 w-6" />,
+      type: 'chat'
+    },
+    {
+      id: 'review',
+      title: 'Review E-rate Requirements',
+      description: 'Confirm extracted services and compliance requirements',
+      icon: <FileCheck className="h-6 w-6" />,
+      type: 'review'
+    },
+    {
+      id: 'generate',
+      title: 'Generate E-rate Response',
+      description: 'Create your competitive bid response for E-rate evaluation',
+      icon: <Sparkles className="h-6 w-6" />,
+      type: 'generate'
+    }
+  ] : [
     {
       id: 'upload',
       title: `Upload Client's ${projectType}`,
@@ -77,6 +106,45 @@ export function RFPWizard({
       description: `Create your professional vendor response to the ${projectType}`,
       icon: <Sparkles className="h-6 w-6" />,
       type: 'generate'
+    }
+  ];
+
+  // Questions for Form 470 responses
+  const form470Questions = [
+    {
+      category: 'erate_experience',
+      question: "What is your SPIN (Service Provider Identification Number)?",
+      icon: <Award className="h-5 w-5" />,
+      examples: ["143######", "Not yet registered", "Application pending"],
+      helpText: "Required for E-rate participation - shows you're an authorized provider"
+    },
+    {
+      category: 'references',
+      question: "List your most relevant E-rate customer references",
+      icon: <Building2 className="h-5 w-5" />,
+      examples: ["Lincoln School District (80% discount, 2022)", "City Library System (70% discount, 2023)"],
+      helpText: "Schools prioritize vendors with successful E-rate implementations"
+    },
+    {
+      category: 'pricing',
+      question: "What pricing advantages can you offer considering their E-rate discount?",
+      icon: <DollarSign className="h-5 w-5" />,
+      examples: ["Volume discounts", "Multi-year pricing locks", "No upfront costs"],
+      helpText: "Remember they evaluate total cost after E-rate discounts"
+    },
+    {
+      category: 'compliance',
+      question: "How will you ensure E-rate compliance and audit readiness?",
+      icon: <FileCheck className="h-5 w-5" />,
+      examples: ["Dedicated E-rate team", "USAC audit support", "Compliant billing practices"],
+      helpText: "Schools need vendors who understand E-rate rules and documentation"
+    },
+    {
+      category: 'timeline',
+      question: "Can you meet the E-rate funding year timeline (July 1 start)?",
+      icon: <Calendar className="h-5 w-5" />,
+      examples: ["Yes, with installation by June 30", "Flexible scheduling available"],
+      helpText: "E-rate has strict deadlines that must be met for funding"
     }
   ];
 
@@ -143,7 +211,9 @@ export function RFPWizard({
     }
   ];
 
-  const questions = projectType === 'RFI' ? rfiQuestions : rfpQuestions;
+  const questions = projectType === 'RFI' ? rfiQuestions :
+                    projectType === 'RFP' ? rfpQuestions :
+                    form470Questions;
   const currentQuestion = questions[chatResponses.length];
 
   const handleAnswerSubmit = () => {

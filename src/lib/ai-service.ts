@@ -14,7 +14,7 @@ const anthropic = new Anthropic({
 // Note: 128K output feature requires beta headers and may not be available in all SDK versions
 
 interface DocumentContext {
-  projectType: 'RFI' | 'RFP';
+  projectType: 'RFI' | 'RFP' | 'FORM_470';
   projectName: string;
   organizationName: string;
   documents: Array<{
@@ -89,6 +89,85 @@ export class AIService {
     }
   }
   
+  async generateForm470Response(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    console.log(`[AIService] Starting Form 470 response generation for ${context.projectName}`);
+
+    if (onProgress) onProgress('Analyzing Form 470 requirements...', 20);
+
+    const prompt = `You are a vendor responding to a Form 470 posted by a school or library for E-rate funding.
+
+    CRITICAL E-RATE CONTEXT:
+    - Form 470s are competitive bidding documents for the E-rate program
+    - Schools/libraries receive ${context.documents[0]?.metadata?.discountPercentage || 40}-90% discounts on eligible services
+    - You must demonstrate E-rate expertise and compliance
+    - Price is often the primary evaluation factor due to "lowest cost" E-rate requirements
+    - All services must be E-rate eligible
+
+    PROJECT: ${context.projectName}
+    ENTITY: ${context.organizationName}
+
+    Based on the Form 470 document provided, create a comprehensive vendor response that:
+
+    1. **Executive Summary**
+       - Acknowledge the Form 470 application number
+       - Confirm understanding of their E-rate discount percentage
+       - Highlight your E-rate program experience
+       - State your SPIN (Service Provider Identification Number) if available
+
+    2. **Proposed Solution**
+       - Address each requested service specifically
+       - Confirm E-rate eligibility for all components
+       - Describe technical approach
+       - Include redundancy and reliability features
+
+    3. **E-rate Compliance**
+       - Confirm all services are eligible under Category 1 or Category 2
+       - Address any special compliance requirements
+       - Reference successful E-rate implementations
+
+    4. **Pricing Strategy**
+       - Present pricing that considers their discount percentage
+       - Show both pre-discount and post-discount costs
+       - Emphasize value and total cost of ownership
+       - Include any E-rate specific pricing models
+
+    5. **Implementation Timeline**
+       - Align with E-rate funding year (July 1 - June 30)
+       - Account for E-rate approval processes
+       - Include milestone dates
+
+    6. **References**
+       - Prioritize other E-rate customers
+       - Include similar sized schools/libraries
+       - Mention successful E-rate audits if applicable
+
+    TONE: Professional, compliant, and focused on E-rate program requirements
+    LENGTH: Comprehensive but concise - schools evaluate many bids
+
+    Form 470 Document Content:
+    ${JSON.stringify(context.documents[0]?.content || '').substring(0, 30000)}
+
+    Additional Context:
+    ${context.chatContext ? JSON.stringify(context.chatContext) : 'None'}`;
+
+    if (onProgress) onProgress('Generating E-rate compliant response...', 60);
+
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 8192,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    if (onProgress) onProgress('Finalizing Form 470 response...', 90);
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+
+    return { content: content.text };
+  }
+
   async generateRFIContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting RFI generation for ${context.projectName}`);
     console.log(`[AIService] Processing ${context.documents.length} documents and ${context.webSources.length} web sources`);

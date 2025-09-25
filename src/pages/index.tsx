@@ -7,7 +7,7 @@ import Link from 'next/link';
 interface Project {
   id: string;
   name: string;
-  project_type: 'RFI' | 'RFP';
+  project_type: 'RFI' | 'RFP' | 'FORM_470';
   organization_name?: string;
   description?: string;
   status: string;
@@ -21,7 +21,7 @@ export default function Home() {
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [organizationName, setOrganizationName] = useState('');
-  const [projectType, setProjectType] = useState<'RFI' | 'RFP'>('RFI');
+  const [projectType, setProjectType] = useState<'RFI' | 'RFP' | 'FORM_470'>('RFI');
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'archived'>('active');
 
   useEffect(() => {
@@ -191,26 +191,45 @@ export default function Home() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Project Type</label>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col gap-2">
                       <label className="flex items-center">
                         <input
                           type="radio"
                           value="RFI"
                           checked={projectType === 'RFI'}
-                          onChange={(e) => setProjectType(e.target.value as 'RFI' | 'RFP')}
+                          onChange={(e) => setProjectType(e.target.value as 'RFI' | 'RFP' | 'FORM_470')}
                           className="mr-2"
                         />
-                        RFI (Request for Information)
+                        <span>
+                          <strong>RFI</strong> - Request for Information
+                          <span className="block text-xs text-gray-500 ml-5">Gather vendor information and capabilities</span>
+                        </span>
                       </label>
                       <label className="flex items-center">
                         <input
                           type="radio"
                           value="RFP"
                           checked={projectType === 'RFP'}
-                          onChange={(e) => setProjectType(e.target.value as 'RFI' | 'RFP')}
+                          onChange={(e) => setProjectType(e.target.value as 'RFI' | 'RFP' | 'FORM_470')}
                           className="mr-2"
                         />
-                        RFP (Request for Proposal)
+                        <span>
+                          <strong>RFP</strong> - Request for Proposal
+                          <span className="block text-xs text-gray-500 ml-5">Formal bid for specific requirements</span>
+                        </span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          value="FORM_470"
+                          checked={projectType === 'FORM_470'}
+                          onChange={(e) => setProjectType(e.target.value as 'RFI' | 'RFP' | 'FORM_470')}
+                          className="mr-2"
+                        />
+                        <span>
+                          <strong>Form 470</strong> - E-rate Application
+                          <span className="block text-xs text-gray-500 ml-5">Schools & libraries telecommunications funding</span>
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -221,12 +240,20 @@ export default function Home() {
                       value={newProjectName}
                       onChange={(e) => setNewProjectName(e.target.value)}
                       className="w-full px-3 py-2 border rounded-md"
-                      placeholder={projectType === 'RFI' ? "e.g., VoIP Market Research RFI" : "e.g., State of Indiana VoIP RFP"}
+                      placeholder={
+                        projectType === 'RFI' ? "e.g., VoIP Market Research RFI" :
+                        projectType === 'RFP' ? "e.g., State of Indiana VoIP RFP" :
+                        "e.g., Lincoln School District Form 470 #225001234"
+                      }
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Client Organization (Optional)</label>
-                    <p className="text-xs text-gray-600 mb-1">The organization that sent you this {projectType}</p>
+                    <p className="text-xs text-gray-600 mb-1">
+                      {projectType === 'FORM_470'
+                        ? 'The school or library posting this Form 470'
+                        : `The organization that sent you this ${projectType}`}
+                    </p>
                     <input
                       type="text"
                       value={organizationName}
@@ -252,7 +279,13 @@ export default function Home() {
                 <CardHeader className="cursor-pointer">
                   <CardTitle className="flex items-center">
                     <FileText className="mr-2 h-5 w-5" />
-                    <span className="text-xs font-normal bg-gray-200 px-2 py-1 rounded mr-2">{project.project_type}</span>
+                    <span className={`text-xs font-normal px-2 py-1 rounded mr-2 ${
+                      project.project_type === 'FORM_470'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-gray-200'
+                    }`}>
+                      {project.project_type === 'FORM_470' ? 'Form 470' : project.project_type}
+                    </span>
                     {project.name}
                   </CardTitle>
                   {project.organization_name && (
