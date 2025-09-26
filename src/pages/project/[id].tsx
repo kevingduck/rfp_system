@@ -969,9 +969,9 @@ export default function ProjectPage() {
                   </>
                 )}
                 
-                <Button 
-                  onClick={() => generateDocument()} 
-                  disabled={isGenerating || !project || (documents.length === 0 && webSources.length === 0)}
+                <Button
+                  onClick={() => generateDocument()}
+                  disabled={isGenerating || !project}
                   size="lg"
                 >
                 {isGenerating ? (
@@ -982,7 +982,10 @@ export default function ProjectPage() {
                 ) : (
                   <>
                     <Download className="mr-2 h-5 w-5" />
-                    {draftData ? 'Regenerate' : 'Generate '} {project?.project_type === 'RFI' ? 'Response' : project?.project_type || ''}
+                    {draftData ? 'Regenerate' : 'Generate '}
+                    {project?.project_type === 'FORM_470' ? 'Form 470 Response' :
+                     project?.project_type === 'RFI' ? 'RFI Response' :
+                     project?.project_type === 'RFP' ? 'RFP Response' : 'Response'}
                   </>
                 )}
                 </Button>
