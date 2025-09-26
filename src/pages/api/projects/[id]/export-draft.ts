@@ -1,6 +1,169 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, WidthType } from 'docx';
 import { query } from '@/lib/pg-db';
+
+// Helper function to process text formatting
+function processTextFormatting(text: string): TextRun[] {
+  const runs: TextRun[] = [];
+
+  // Handle citations specially
+  if (text.includes('[Source:')) {
+    const parts = text.split(/\[Source:([^\]]+)\]/g);
+    parts.forEach((part, index) => {
+      if (index % 2 === 0 && part) {
+        // Regular text - check for bold/italic
+        const formattedRuns = processBasicFormatting(part);
+        runs.push(...formattedRuns);
+      } else if (part) {
+        // Citation
+        runs.push(new TextRun({
+          text: `[Source: ${part}]`,
+          italics: true,
+          font: 'Calibri',
+          size: 20 // 10pt
+        }));
+      }
+    });
+  } else {
+    runs.push(...processBasicFormatting(text));
+  }
+
+  return runs.length > 0 ? runs : [new TextRun({ text })];
+}
+
+function processBasicFormatting(text: string): TextRun[] {
+  const runs: TextRun[] = [];
+
+  // Handle bold text
+  const boldParts = text.split('**');
+  boldParts.forEach((part, index) => {
+    const isBold = index % 2 === 1;
+
+    // Handle italic within each part
+    const italicParts = part.split(/\*|_/);
+    italicParts.forEach((italicPart, italicIndex) => {
+      const isItalic = italicIndex % 2 === 1;
+
+      if (italicPart) {
+        runs.push(new TextRun({
+          text: italicPart,
+          bold: isBold,
+          italics: isItalic
+        }));
+      }
+    });
+  });
+
+  return runs.length > 0 ? runs : [new TextRun({ text })];
+}
+
+function processContentForExport(contentText: string): any[] {
+  const children: any[] = [];
+  const lines = contentText.split('\n');
+  let inList = false;
+  let listType: 'bullet' | 'numbered' | null = null;
+
+  lines.forEach((line: string, index: number) => {
+    const trimmedLine = line.trim();
+
+    // Check indentation level for nested lists
+    const indentMatch = line.match(/^(\s*)/);
+    const indentLevel = indentMatch ? Math.floor(indentMatch[1].length / 2) : 0;
+
+    // Handle markdown headers
+    if (trimmedLine.match(/^#+\s+/)) {
+      inList = false;
+      listType = null;
+
+      const levelMatch = trimmedLine.match(/^(#+)\s+/);
+      const level = levelMatch ? levelMatch[1].length : 1;
+      const headerText = trimmedLine.replace(/^#+\s*/, '');
+
+      children.push(
+        new Paragraph({
+          text: headerText,
+          heading: level === 2 ? HeadingLevel.HEADING_2 :
+                   level === 3 ? HeadingLevel.HEADING_3 :
+                   level === 4 ? HeadingLevel.HEADING_4 : HeadingLevel.HEADING_2,
+          spacing: { before: 240, after: 120 }
+        })
+      );
+    }
+    // Handle bullet points
+    else if (trimmedLine.match(/^[\-\*•]\s+/)) {
+      listType = 'bullet';
+      inList = true;
+
+      const bulletText = trimmedLine.replace(/^[\-\*•]\s+/, '');
+      const runs = processTextFormatting(bulletText);
+
+      children.push(
+        new Paragraph({
+          children: runs,
+          bullet: { level: indentLevel },
+          spacing: { after: 60 }
+        })
+      );
+    }
+    // Handle numbered lists
+    else if (trimmedLine.match(/^\d+[\.)\]]\s+/)) {
+      listType = 'numbered';
+      inList = true;
+
+      const numberText = trimmedLine.replace(/^\d+[\.)\]]\s+/, '');
+      const runs = processTextFormatting(numberText);
+
+      children.push(
+        new Paragraph({
+          children: runs,
+          numbering: { reference: 'default-numbering', level: indentLevel },
+          spacing: { after: 60 }
+        })
+      );
+    }
+    // Handle continued list items (indented text after a list item)
+    else if (inList && trimmedLine && line.match(/^\s{2,}/)) {
+      const runs = processTextFormatting(trimmedLine);
+
+      children.push(
+        new Paragraph({
+          children: runs,
+          indent: { left: 720 * (indentLevel + 1) },
+          spacing: { after: 60 }
+        })
+      );
+    }
+    // Handle regular paragraphs
+    else if (trimmedLine) {
+      // Check if this ends the list
+      if (inList && !line.match(/^\s{2,}/)) {
+        inList = false;
+        listType = null;
+      }
+
+      const runs = processTextFormatting(trimmedLine);
+
+      children.push(
+        new Paragraph({
+          children: runs,
+          spacing: { after: 120 }
+        })
+      );
+    }
+    // Handle empty lines
+    else if (!inList) {
+      // Only add spacing between paragraphs, not within lists
+      children.push(
+        new Paragraph({
+          text: '',
+          spacing: { after: 60 }
+        })
+      );
+    }
+  });
+
+  return children;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -110,57 +273,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Parse the content properly
       const contentText = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
-      
-      // Split by newlines and process each line
-      const lines = contentText.split('\n');
-      let inList = false;
-      
-      lines.forEach((line: string, index: number) => {
-        const trimmedLine = line.trim();
-        
-        if (!trimmedLine && !inList) {
-          // Empty line - add spacing
-          if (index > 0 && lines[index - 1].trim()) {
-            children.push(
-              new Paragraph({
-                text: '',
-                spacing: { after: 100 }
-              })
-            );
-          }
-        } else if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-') || trimmedLine.match(/^\d+\./)) {
-          // List item
-          inList = true;
-          const listText = trimmedLine.replace(/^[•\-\d+\.]\s*/, '');
-          children.push(
-            new Paragraph({
-              text: listText,
-              bullet: { level: 0 },
-              spacing: { after: 100 }
-            })
-          );
-        } else if (trimmedLine.startsWith('#')) {
-          // Subheading
-          inList = false;
-          const headingText = trimmedLine.replace(/^#+\s*/, '');
-          children.push(
-            new Paragraph({
-              text: headingText,
-              heading: HeadingLevel.HEADING_2,
-              spacing: { before: 200, after: 100 }
-            })
-          );
-        } else if (trimmedLine) {
-          // Regular paragraph
-          inList = false;
-          children.push(
-            new Paragraph({
-              text: trimmedLine,
-              spacing: { after: 200 }
-            })
-          );
-        }
-      });
+
+      // Process content with better formatting
+      children.push(...processContentForExport(contentText));
 
       // Add space before next section
       children.push(new PageBreak());

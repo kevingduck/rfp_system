@@ -163,80 +163,208 @@ export class AIService {
     }
   }
   
-  async generateForm470Response(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+  async generateForm470Response(context: any, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting Form 470 response generation for ${context.projectName}`);
 
-    if (onProgress) onProgress('Extracting Form 470 requirements...', 20);
+    if (onProgress) onProgress('Building comprehensive Form 470 response...', 20);
 
-    // First, extract the actual requirements from the Form 470
-    let extractedRequirements = {};
-    if (context.documents && context.documents.length > 0) {
-      const mainDoc = context.documents[0];
-      let documentContent = '';
+    // Build valid sources list for citations
+    const validSources: string[] = [];
 
-      // Parse the document content
-      if (typeof mainDoc.content === 'string') {
-        try {
-          const parsed = JSON.parse(mainDoc.content);
-          documentContent = parsed.text || JSON.stringify(parsed);
-        } catch {
-          documentContent = mainDoc.content;
+    if (context.documents?.length > 0) {
+      context.documents.forEach(doc => validSources.push(doc.filename));
+    }
+    if (context.webSources?.length > 0) {
+      context.webSources.forEach(source => validSources.push(`${source.title} (${source.url})`));
+    }
+    if (context.knowledgeBase) {
+      Object.entries(context.knowledgeBase).forEach(([category, files]) => {
+        if (Array.isArray(files)) {
+          files.forEach((file: any) => validSources.push(`${file.filename} (Knowledge Base: ${category})`));
         }
-      } else {
-        documentContent = JSON.stringify(mainDoc.content);
-      }
-
-      // Extract requirements
-      extractedRequirements = await this.extractDocumentRequirements(documentContent, 'Form 470');
+      });
+    }
+    if (context.companyInfo) {
+      validSources.push('Company Settings');
     }
 
-    if (onProgress) onProgress('Analyzing extracted requirements...', 40);
+    // Prepare document summaries for context
+    let documentContext = '';
+    if (context.documents?.length > 0) {
+      documentContext = '\n\nUPLOADED DOCUMENTS:\n';
+      for (const doc of context.documents) {
+        documentContext += `\nDocument: ${doc.filename}\n`;
+        if (doc.content) {
+          const contentPreview = typeof doc.content === 'string' ?
+            doc.content.substring(0, 5000) : JSON.stringify(doc.content).substring(0, 5000);
+          documentContext += `Content: ${contentPreview}\n`;
+        }
+      }
+    }
 
-    // Build a response that specifically addresses the extracted requirements
-    const prompt = `You are a vendor responding to a Form 470 for E-rate funding.
-    Generate a TARGETED response that SPECIFICALLY addresses what they asked for.
+    // Build the comprehensive prompt
+    const prompt = `You are creating a professional Form 470 response document for ${context.companyInfo?.company_name || 'our company'}.
 
-    EXTRACTED REQUIREMENTS FROM THEIR FORM 470:
-    ${JSON.stringify(extractedRequirements, null, 2)}
+CONTEXT:
+- Form 470 Number: ${context.form470Details?.applicationNumber || 'Pending'}
+- Entity: ${context.form470Details?.entityName || context.organizationName}
+- Funding Year: ${context.form470Details?.fundingYear || '2025'}
+- Discount: ${context.form470Details?.discountPercentage || 80}%
+- Service Category: ${context.form470Details?.serviceCategory || 'Category 1'}
+- Services Requested: ${context.form470Details?.servicesRequested?.join(', ') || 'Internet/WAN'}
+- Locations: ${context.form470Details?.locations || 'Multiple'}
+- Students: ${context.form470Details?.students || 'Not specified'}
 
-    PROJECT: ${context.projectName}
-    ENTITY: ${context.organizationName}
+COMPANY INFORMATION:
+${context.companyInfo ? `
+- Company: ${context.companyInfo.company_name}
+- SPIN: ${context.companyInfo.spin_number || 'Pending'}
+- Tax ID: ${context.companyInfo.tax_id || 'Available upon request'}
+- FCC Reg: ${context.companyInfo.fcc_registration || 'Pending'}
+- Primary Contact: ${context.companyInfo.contact_name} (${context.companyInfo.contact_email}, ${context.companyInfo.contact_phone})
+- Team Size: ${context.companyInfo.team_size || '50+'}
+- Years in Business: ${context.companyInfo.years_in_business || '10+'}
+- E-Rate Experience: ${context.companyInfo.erate_experience || 'Extensive'}
+- E-Rate Funding Secured: ${context.companyInfo.erate_funding_secured || '$50M+'}
+- Districts Served: ${context.companyInfo.districts_served || '100+'}
+` : 'Company information not provided'}
 
-    OUR COMPANY INFORMATION:
-    ${context.companyInfo ? JSON.stringify(context.companyInfo) : 'Not provided'}
+KEY PERSONNEL (if available):
+${context.companyInfo?.key_personnel ? context.companyInfo.key_personnel : 'To be provided'}
 
-    CRITICAL INSTRUCTIONS:
-    1. Address EACH specific requirement they listed
-    2. Quote their requirement, then provide your solution
-    3. Use this structure for each requirement:
-       - "Your Requirement: [quote from Form 470]"
-       - "Our Solution: [specific solution addressing that requirement]"
-       - "Technical Details: [how we meet/exceed the requirement]"
-       - "Pricing: [specific pricing for that item]"
+EXTRACTED REQUIREMENTS:
+${context.extractedRequirements ? JSON.stringify(context.extractedRequirements, null, 2) : 'No specific requirements extracted'}
 
-    4. ONLY include company capabilities that directly relate to their requirements
-    5. Be specific - if they want "1000 Mbps fiber to Building A", respond with exactly that
-    6. Include E-rate compliance statements ONLY where relevant to their requirements
-    7. Use their terminology and reference their specific sections/items
+${documentContext}
 
-    Generate sections:
-    EXECUTIVE_SUMMARY: Brief overview addressing their main requirements
-    SERVICE_BY_SERVICE_RESPONSE: Detailed response to each service requested
-    PRICING_SUMMARY: Clear pricing for each requested item
-    IMPLEMENTATION_TIMELINE: Timeline specific to their requirements
-    COMPLIANCE_STATEMENT: E-rate eligibility confirmation
+INSTRUCTIONS FOR PROFESSIONAL FORM 470 RESPONSE:
 
-    Make it SPECIFIC to their actual requirements, not generic.`;
+Generate EXTREMELY DETAILED, PROFESSIONAL content for each section. This should read like a real, winning Form 470 response from an experienced E-rate vendor.
 
-    if (onProgress) onProgress('Generating targeted response...', 60);
+SECTION REQUIREMENTS:
 
+1. EXECUTIVE_SUMMARY (3-4 paragraphs):
+   - Open with excitement about the opportunity
+   - Summarize your understanding of their needs
+   - Highlight 3-4 key differentiators
+   - Close with commitment to their success
+   - Include [Source: citations] from documents
+
+2. UNDERSTANDING_REQUIREMENTS (4-5 paragraphs):
+   - Quote specific requirements from their Form 470
+   - Show deep understanding of their environment
+   - Identify challenges they may face
+   - Explain how you'll address each challenge
+   - Reference similar successful implementations
+
+3. TECHNICAL_SOLUTION (6-8 paragraphs):
+   - Detailed technical architecture
+   - Specific equipment models and specifications
+   - Bandwidth calculations and growth projections
+   - Redundancy and failover mechanisms
+   - Network security measures
+   - Quality of Service (QoS) configuration
+   - Monitoring and management tools
+   - Include specific product names and model numbers
+
+4. COMPANY_BACKGROUND (3-4 paragraphs):
+   - Company history and mission
+   - E-rate specific experience and success metrics
+   - Certifications and partnerships
+   - Local presence and support capabilities
+   - Use actual data from company settings
+
+5. KEY_PERSONNEL (4-5 team members):
+   For each person, include:
+   - Full name and title
+   - Years of experience
+   - Specific E-rate expertise
+   - Role in this project
+   - Contact information
+
+   Example format:
+   ### John Smith - Senior E-Rate Consultant
+   With over 15 years of experience in E-rate program management, John has successfully guided over 200 school districts through the E-rate process, securing over $75 million in funding. John holds certifications in Cisco CCNP, USAC E-rate Compliance, and Project Management Professional (PMP). As your dedicated E-rate consultant, John will ensure all aspects of your project maintain full compliance while maximizing your funding opportunities.
+   **Email:** john.smith@company.com | **Direct:** (555) 123-4567
+
+6. IMPLEMENTATION_TIMELINE (Detailed milestone table):
+   - Week 1-2: Contract execution and USAC filing
+   - Week 3-4: Site surveys and technical design finalization
+   - Week 5-6: Equipment ordering and staging
+   - Week 7-8: Installation Phase 1 (Main sites)
+   - Week 9-10: Installation Phase 2 (Remote sites)
+   - Week 11-12: Testing and optimization
+   - Week 13-14: Training and documentation
+   - Week 15-16: Go-live and support transition
+
+7. PRICING_PROPOSAL (Detailed breakdown):
+   - Line-item pricing for each service
+   - Pre-discount amounts
+   - E-rate discount calculations
+   - Post-discount amounts (what district pays)
+   - Payment terms aligned with E-rate
+   - Optional services clearly marked
+
+   Format as:
+   ### Category 1 - Internet Access
+   **1Gbps Dedicated Internet Access - Main Campus**
+   - Monthly Recurring: $3,500
+   - E-rate Discount (${context.form470Details?.discountPercentage || 80}%): -$2,800
+   - **Your Monthly Cost: $700**
+
+8. PAST_PERFORMANCE (3-4 detailed case studies):
+   For each case study:
+   - Client name and size
+   - Challenge they faced
+   - Solution implemented
+   - Measurable results
+   - Client testimonial quote
+
+9. REFERENCES (3 references):
+   For each reference:
+   - Organization name
+   - Contact person and title
+   - Phone and email
+   - Project description
+   - Funding amount secured
+
+10. CERTIFICATIONS_COMPLIANCE (2-3 paragraphs):
+    - E-rate compliance certifications
+    - CIPA compliance capabilities
+    - Industry certifications (list specific ones)
+    - Security and data protection standards
+
+CITATION REQUIREMENTS:
+- Add [Source: filename] citations throughout
+- Valid sources you can cite: ${validSources.join(', ')}
+- ONLY cite sources that exist in the list above
+- When citing uploaded Form 470: [Source: ${context.documents?.[0]?.filename || 'Form470.pdf'}]
+- When citing company info: [Source: Company Settings]
+
+WRITING STYLE:
+- Professional but approachable
+- Specific and detailed (avoid generalities)
+- Use industry terminology correctly
+- Include specific model numbers, speeds, quantities
+- Show expertise through technical details
+- Make it 3-4x more detailed than a typical response
+
+TARGET: Generate 15-20 pages worth of professional content that would win this bid.
+
+Format each section as:
+SECTION_NAME: [detailed content with citations]`;
+
+    if (onProgress) onProgress('Generating comprehensive Form 470 response...', 60);
+
+    // Call AI with the enhanced prompt
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 8192,
+      temperature: 0.7,
       messages: [{ role: 'user', content: prompt }]
     });
 
-    if (onProgress) onProgress('Formatting Form 470 response...', 90);
+    if (onProgress) onProgress('Processing response sections...', 80);
 
     const content = response.content[0];
     if (content.type !== 'text') {
@@ -245,6 +373,17 @@ export class AIService {
 
     // Parse the response into sections
     const sections = this.parseAIResponse(content.text);
+
+    // Debug logging
+    console.log(`[AIService] Parsed ${Object.keys(sections).length} sections from AI response`);
+    console.log(`[AIService] Section names:`, Object.keys(sections));
+
+    // Log first 100 chars of each section for debugging
+    Object.entries(sections).forEach(([name, content]) => {
+      console.log(`[AIService] Section "${name}" preview: ${(content as string).substring(0, 100)}...`);
+    });
+
+    if (onProgress) onProgress('Form 470 response complete', 100);
 
     return sections;
   }
