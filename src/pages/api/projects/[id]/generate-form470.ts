@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const chatContext = req.body.chatContext || null;
 
     // Generate the Form 470 response
-    const docBuffer = await generator.generateForm470Response(chatContext);
+    const { buffer: docBuffer, sections } = await generator.generateForm470Response(chatContext);
 
     // Save the generated document to temp dir in production
     const exportsDir = process.env.NODE_ENV === 'production'
@@ -57,23 +57,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     await fs.writeFile(filepath, docBuffer);
 
-    // Save draft to database
+    // Save draft to database with actual sections content
     const draftId = uuidv4();
     await query(
-      `INSERT INTO drafts (id, project_id, content, format, metadata)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO drafts (id, project_id, content, format, metadata, current_version)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         draftId,
         id,
-        'Form 470 Response Generated',
+        JSON.stringify(sections), // Store the actual sections
         'docx',
         JSON.stringify({
           filename,
           filepath,
           generatedAt: new Date().toISOString(),
           projectType: 'FORM_470',
-          chatContext: chatContext
-        })
+          chatContext: chatContext,
+          documentsUsed: [],
+          webSourcesUsed: [],
+          knowledgeBaseUsed: []
+        }),
+        1
       ]
     );
 

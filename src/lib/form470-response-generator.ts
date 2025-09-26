@@ -127,7 +127,7 @@ export class Form470ResponseGenerator {
     return `Strategic recommendations for winning this Form 470 bid...`;
   }
 
-  async generateForm470Response(chatContext?: any): Promise<Buffer> {
+  async generateForm470Response(chatContext?: any): Promise<{ buffer: Buffer; sections: Record<string, string> }> {
     console.log(`[Form470ResponseGenerator] Starting Form 470 response generation for project ${this.projectId}`);
 
     // Fetch project and document data
@@ -179,7 +179,14 @@ export class Form470ResponseGenerator {
     const buffer = await Packer.toBuffer(doc);
     console.log(`[Form470ResponseGenerator] Response generation complete`);
 
-    return buffer;
+    // Convert sections array to object for storage
+    const sectionsObject: Record<string, string> = {};
+    data.sections.forEach((section, index) => {
+      const key = section.title.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      sectionsObject[key] = section.content;
+    });
+
+    return { buffer, sections: sectionsObject };
   }
 
   private async collectResponseData(

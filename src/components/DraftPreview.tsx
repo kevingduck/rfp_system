@@ -62,10 +62,21 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
 
   // Initialize edited content with original content
   useEffect(() => {
+    console.log('[DraftPreview] Initializing with draft:', draft);
     const initialContent: Record<string, string> = {};
-    Object.entries(draft.sections).forEach(([key, content]) => {
-      initialContent[key] = content;
-    });
+
+    // Check if draft.sections exists and is an object
+    if (draft && draft.sections && typeof draft.sections === 'object') {
+      Object.entries(draft.sections).forEach(([key, content]) => {
+        if (typeof content === 'string') {
+          initialContent[key] = content;
+        }
+      });
+    } else {
+      console.warn('[DraftPreview] No sections found in draft:', draft);
+    }
+
+    console.log('[DraftPreview] Setting editedContent:', initialContent);
     setEditedContent(initialContent);
   }, [draft.sections]);
 
