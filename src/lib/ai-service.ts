@@ -351,31 +351,20 @@ WRITING STYLE:
 
 TARGET: Generate 15-20 pages worth of professional content that would win this bid.
 
+CRITICAL: You MUST generate ALL sections completely. Do NOT stop partway through.
+Do NOT ask "Would you like me to continue?" or similar.
+Generate COMPLETE content for every section listed above.
+
 Format each section as:
 SECTION_NAME: [detailed content with citations]`;
 
     if (onProgress) onProgress('Generating comprehensive Form 470 response...', 60);
 
-    // Call AI with the enhanced prompt
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 8192,
-      temperature: 0.7,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    if (onProgress) onProgress('Processing response sections...', 80);
-
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from AI');
-    }
-
-    // Parse the response into sections
-    const sections = this.parseAIResponse(content.text);
+    // Use chunked generation for comprehensive response
+    const sections = await this.generateForm470Chunked(prompt, context, onProgress);
 
     // Debug logging
-    console.log(`[AIService] Parsed ${Object.keys(sections).length} sections from AI response`);
+    console.log(`[AIService] Generated ${Object.keys(sections).length} sections from chunked generation`);
     console.log(`[AIService] Section names:`, Object.keys(sections));
 
     // Log first 100 chars of each section for debugging
@@ -386,6 +375,102 @@ SECTION_NAME: [detailed content with citations]`;
     if (onProgress) onProgress('Form 470 response complete', 100);
 
     return sections;
+  }
+
+  private async generateForm470Chunked(
+    basePrompt: string,
+    context: any,
+    onProgress?: (message: string, progress: number) => void
+  ): Promise<Record<string, string>> {
+    const allSections: Record<string, string> = {};
+
+    // Define section groups to generate separately
+    const sectionGroups = [
+      {
+        name: 'Introduction',
+        sections: ['EXECUTIVE_SUMMARY', 'UNDERSTANDING_REQUIREMENTS'],
+        progress: 65
+      },
+      {
+        name: 'Technical',
+        sections: ['TECHNICAL_SOLUTION', 'IMPLEMENTATION_TIMELINE'],
+        progress: 70
+      },
+      {
+        name: 'Company',
+        sections: ['COMPANY_BACKGROUND', 'KEY_PERSONNEL'],
+        progress: 75
+      },
+      {
+        name: 'Pricing',
+        sections: ['PRICING_PROPOSAL', 'PAYMENT_TERMS'],
+        progress: 80
+      },
+      {
+        name: 'Experience',
+        sections: ['PAST_PERFORMANCE', 'ERATE_EXPERIENCE'],
+        progress: 85
+      },
+      {
+        name: 'References',
+        sections: ['REFERENCES', 'CERTIFICATIONS_COMPLIANCE'],
+        progress: 90
+      }
+    ];
+
+    // Generate each group of sections
+    for (const group of sectionGroups) {
+      if (onProgress) onProgress(`Generating ${group.name} sections...`, group.progress);
+
+      const groupPrompt = `${basePrompt}
+
+FOR THIS REQUEST, ONLY GENERATE THESE SPECIFIC SECTIONS:
+${group.sections.join(', ')}
+
+Generate ONLY these sections with comprehensive, detailed content. Each section should be 3-5 paragraphs minimum.
+
+IMPORTANT: Do NOT ask if I want you to continue. Generate complete content for all requested sections.`;
+
+      try {
+        const response = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 4096,  // Use smaller chunks
+          temperature: 0.7,
+          messages: [{ role: 'user', content: groupPrompt }]
+        });
+
+        const content = response.content[0];
+        if (content.type === 'text') {
+          const sections = this.parseAIResponse(content.text);
+          Object.assign(allSections, sections);
+        }
+      } catch (error) {
+        console.error(`[AIService] Error generating ${group.name} sections:`, error);
+        // Continue with other sections even if one fails
+      }
+    }
+
+    return allSections;
+  }
+
+  private async generateForm470Complete(
+    prompt: string,
+    onProgress?: (message: string, progress: number) => void
+  ): Promise<Record<string, string>> {
+    // Fallback: Try to generate everything in one call with max tokens
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 8192,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: prompt + '\n\nIMPORTANT: Generate ALL sections completely. Do NOT ask if I want you to continue.' }]
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+
+    return this.parseAIResponse(content.text);
   }
 
   async generateRFIContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
