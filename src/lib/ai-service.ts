@@ -1893,4 +1893,102 @@ Be specific, professional, and reference information from the documents where re
     
     return answers;
   }
+
+  async processChatMessage(params: {
+    message: string;
+    context: any;
+  }): Promise<{
+    message: string;
+    action?: {
+      type: string;
+      data: any;
+    };
+    suggestions?: string[];
+  }> {
+    const { message, context } = params;
+
+    // Build a comprehensive prompt for the AI
+    const prompt = `You are an AI assistant helping with ${context.projectType} document preparation.
+
+Current Project Context:
+- Project: ${context.projectName} (${context.projectType})
+- Documents uploaded: ${context.documentCount}
+- Draft status: ${context.hasDraft ? 'Generated' : 'Not generated'}
+${context.hasDraft ? `- Draft sections: ${context.draftSections.join(', ')}` : ''}
+- Questions: ${context.questionCount} total, ${context.answeredQuestions} answered
+- Company: ${context.companyInfo?.company_name || 'Not configured'}
+
+User Message: "${message}"
+
+Analyze the user's intent and provide a helpful response. If they want to edit the draft, provide specific changes.
+
+IMPORTANT INSTRUCTIONS:
+1. If the user wants to edit/modify/update the draft, you MUST:
+   - Set action.type to "update_draft"
+   - Provide the complete updated sections in action.data.sections
+   - Include ALL sections, even unchanged ones
+   - Preserve the exact section names (keys) from the current draft
+
+2. If the user asks about the project, provide helpful information without an action.
+
+3. If the user wants to generate something new, suggest the appropriate action.
+
+Current draft content for reference:
+${context.currentDraftContent ? JSON.stringify(context.currentDraftContent, null, 2) : 'No draft yet'}
+
+Response format:
+{
+  "message": "Your helpful response to the user",
+  "action": {
+    "type": "update_draft" | "generate_draft" | "extract_questions" | null,
+    "data": {
+      "sections": { ... } // For update_draft, include ALL sections
+    }
+  },
+  "suggestions": ["Optional suggestion 1", "Optional suggestion 2"]
+}
+
+Respond with valid JSON only.`;
+
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 8192,
+        temperature: 0.3,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
+      });
+
+      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+
+      // Parse the JSON response
+      try {
+        const parsed = JSON.parse(content);
+        return {
+          message: parsed.message || 'I can help with that.',
+          action: parsed.action,
+          suggestions: parsed.suggestions
+        };
+      } catch (parseError) {
+        // If JSON parsing fails, try to extract a message
+        console.error('Failed to parse AI response as JSON:', parseError);
+        return {
+          message: content || 'I understand. Let me help you with that.',
+          action: undefined,
+          suggestions: []
+        };
+      }
+    } catch (error) {
+      console.error('Chat AI error:', error);
+      return {
+        message: 'I apologize, but I encountered an error processing your request. Please try again.',
+        action: undefined,
+        suggestions: ['Try rephrasing your request', 'Check the help menu for available commands']
+      };
+    }
+  }
 }

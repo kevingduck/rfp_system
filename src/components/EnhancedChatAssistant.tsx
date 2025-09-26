@@ -165,77 +165,85 @@ Type "help" for commands or "status" to see project overview.`,
   };
 
   const processNewCommand = async (message: string) => {
-    // Status command
-    if (message === 'status' || message.includes('show status')) {
-      return handleStatusCommand();
+    // Check for basic commands first
+    if (message === 'help' || message === 'status') {
+      // Handle basic commands locally for speed
+      if (message === 'help') {
+        return handleHelpIntent();
+      }
+      if (message === 'status') {
+        return handleStatusCommand();
+      }
     }
-    
-    // Help command
-    if (message === 'help' || message.includes('what can')) {
-      return handleHelpIntent();
+
+    // For all other messages, use AI to understand intent
+    try {
+      const response = await fetch(`/api/projects/${projectId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          context: {
+            hasDocuments: documents.length > 0,
+            hasDraft: !!currentDraft,
+            draftSections: currentDraft ? Object.keys(currentDraft.sections || {}) : [],
+            questionCount: questions.length,
+            answeredQuestions: questions.filter(q => q.answer).length,
+            mainDocument: mainDocument
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process message');
+      }
+
+      const data = await response.json();
+
+      // Handle actions from AI
+      if (data.action) {
+        switch (data.action.type) {
+          case 'update_draft':
+            // Draft has been updated, trigger refresh
+            if (onRefreshQuestions) {
+              await onRefreshQuestions();
+            }
+            // Reload the page to show updated draft
+            window.location.reload();
+            break;
+
+          case 'generate_draft':
+            await onGenerateDraft();
+            break;
+
+          case 'extract_questions':
+            await onExtractQuestions();
+            break;
+        }
+      }
+
+      // Return the AI's message with suggestions as quick actions
+      return createBotMessage(
+        data.response,
+        data.suggestions?.map((s: string) => ({ label: s, value: s }))
+      );
+
+    } catch (error) {
+      console.error('AI chat error:', error);
+
+      // Fallback to pattern matching for basic operations
+      if (message.includes('list document')) {
+        return handleListDocuments();
+      }
+      if (message.includes('extract') && message.includes('question')) {
+        return handleExtractQuestionsIntent();
+      }
+      if (message.includes('generate') && message.includes('draft')) {
+        return handleGenerateDraftIntent();
+      }
+
+      return createErrorMessage('I had trouble understanding that. Try asking differently or use "help" for available commands.');
     }
-    
-    // List documents
-    if (message.includes('list document') || message.includes('show document')) {
-      return handleListDocuments();
-    }
-    
-    // Extract questions
-    if (message.includes('extract') && message.includes('question')) {
-      return handleExtractQuestionsIntent();
-    }
-    
-    // Delete question
-    if (message.includes('delete') && message.includes('question')) {
-      return handleDeleteQuestionIntent();
-    }
-    
-    // Edit question
-    if (message.includes('edit') && message.includes('question')) {
-      return handleEditQuestionIntent();
-    }
-    
-    // Add question
-    if (message.includes('add') && message.includes('question')) {
-      return handleAddQuestionIntent();
-    }
-    
-    // Upload document
-    if (message.includes('upload') || (message.includes('add') && message.includes('document'))) {
-      return handleUploadDocumentIntent();
-    }
-    
-    // Delete document
-    if (message.includes('delete') && message.includes('document')) {
-      return handleDeleteDocumentIntent();
-    }
-    
-    // Generate answers
-    if (message.includes('generate') && message.includes('answer')) {
-      return handleGenerateAnswersIntent();
-    }
-    
-    // Generate draft
-    if (message.includes('generate') && (message.includes('draft') || message.includes('document'))) {
-      return handleGenerateDraftIntent();
-    }
-    
-    // Show specific question
-    if (message.match(/show question (\d+)|question (\d+)/)) {
-      return handleShowQuestion(message);
-    }
-    
-    // Set main document
-    if ((message.includes('set') || message.includes('change')) && message.includes('main') && message.includes('document')) {
-      return handleSetMainDocumentIntent();
-    }
-    
-    // Show main document
-    if (message.includes('main') && message.includes('document')) {
-      return handleShowMainDocument();
-    }
-    
-    return handleGeneralQuery(message);
   };
 
   const createBotMessage = (content: string, quickActions?: any[]): Message => ({
@@ -853,15 +861,34 @@ ${documents.map((doc, i) =>
     setInputValue('');
     setIsProcessing(true);
 
+    // Add thinking indicator if the message might use AI
+    const needsAI = !['help', 'status'].includes(message.toLowerCase());
+    if (needsAI) {
+      const thinkingMessage: Message = {
+        id: `thinking-${Date.now()}`,
+        type: 'bot',
+        content: '🤔 Thinking...',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, thinkingMessage]);
+    }
+
     try {
       // Process the message and get bot response
       const botResponse = await processUserMessage(message);
       if (botResponse) {
-        setMessages(prev => [...prev, botResponse]);
+        // Remove thinking message and add actual response
+        setMessages(prev => {
+          const filtered = prev.filter(m => !m.id.startsWith('thinking-'));
+          return [...filtered, botResponse];
+        });
       }
     } catch (error) {
       const errorMessage = createErrorMessage('Sorry, something went wrong. Please try again.');
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => {
+        const filtered = prev.filter(m => !m.id.startsWith('thinking-'));
+        return [...filtered, errorMessage];
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -1022,12 +1049,23 @@ ${documents.map((doc, i) =>
                                 : 'bg-white text-gray-800 shadow-sm'
                             }`}
                           >
-                            <div 
-                              className="whitespace-pre-wrap"
-                              dangerouslySetInnerHTML={{ 
-                                __html: message.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                              }}
-                            />
+                            {message.id.startsWith('thinking-') ? (
+                              <div className="flex items-center gap-2">
+                                <span>{message.content}</span>
+                                <div className="flex gap-1">
+                                  <span className="animate-bounce inline-block" style={{ animationDelay: '0ms' }}>.</span>
+                                  <span className="animate-bounce inline-block" style={{ animationDelay: '150ms' }}>.</span>
+                                  <span className="animate-bounce inline-block" style={{ animationDelay: '300ms' }}>.</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className="whitespace-pre-wrap"
+                                dangerouslySetInnerHTML={{
+                                  __html: message.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                }}
+                              />
+                            )}
                           </div>
 
                           {/* Quick action buttons */}
