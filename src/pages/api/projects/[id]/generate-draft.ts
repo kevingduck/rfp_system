@@ -110,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const rfiQuestions = rfiQuestionsResult.rows;
 
       sendProgress('Summarizing documents...', 50);
-      
+
       // Create a progress callback that sends SSE updates
       const progressCallback = (message: string, progress: number) => {
         sendProgress(message, progress);
@@ -140,6 +140,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })),
         companyInfo,
         rfiQuestions,
+        chatContext,
+        knowledgeBase,
+        targetLength
+      }, progressCallback);
+    } else if (project.project_type === 'FORM_470') {
+      sendProgress('Analyzing Form 470 requirements...', 50);
+
+      // Create a progress callback that sends SSE updates
+      const progressCallback = (message: string, progress: number) => {
+        sendProgress(message, progress);
+      };
+
+      // For Form 470s, we need to extract requirements and generate targeted response
+      content = await aiService.generateForm470Response({
+        projectType: 'FORM_470',
+        projectName: project.name,
+        organizationName: organization?.name || 'School/Library Entity',
+        documents: documents.map(doc => ({
+          filename: doc.filename,
+          content: doc.content,
+          metadata: {
+            ...doc.metadata,
+            summary_cache: doc.summary_cache,
+            summary_generated_at: doc.summary_generated_at
+          }
+        })),
+        webSources: webSources.map(source => ({
+          url: source.url,
+          title: source.title,
+          content: source.content,
+          metadata: {
+            summary_cache: source.summary_cache,
+            summary_generated_at: source.summary_generated_at
+          }
+        })),
+        companyInfo,
         chatContext,
         knowledgeBase,
         targetLength

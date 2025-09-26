@@ -56,9 +56,83 @@ interface DocumentContext {
 
 export class AIService {
   private summarizer: DocumentSummarizer;
-  
+
   constructor() {
     this.summarizer = new DocumentSummarizer();
+  }
+
+  async extractDocumentRequirements(documentContent: string, documentType: string = 'document'): Promise<any> {
+    console.log(`[AIService] Extracting requirements from ${documentType}`);
+
+    const prompt = `Analyze this ${documentType} and extract ALL requirements, requests, and evaluation criteria.
+    DO NOT assume any particular structure - adapt to whatever is in the document.
+
+    Extract and organize the following (if present):
+    1. Services/Products Requested - List EXACTLY what they're asking for
+    2. Technical Requirements - Specific technical specifications mentioned
+    3. Quantities - Number of units, locations, users, etc.
+    4. Timeline/Deadlines - All dates mentioned
+    5. Evaluation Criteria - How they will score/evaluate responses
+    6. Budget/Pricing Expectations - Any budget mentions or pricing structures requested
+    7. Compliance Requirements - Certifications, standards, regulations mentioned
+    8. Special Conditions - Any unique requirements or preferences
+    9. Contact Information - Who to contact and how
+    10. Submission Instructions - How to respond
+
+    IMPORTANT:
+    - Extract ACTUAL requirements from the document, not generic categories
+    - If they ask for "1000 Mbps fiber to 5 schools", extract exactly that
+    - Include section/page references when possible
+    - Don't make up information that's not in the document
+
+    Document Content:
+    ${documentContent.substring(0, 100000)}
+
+    Return as structured JSON with the actual requirements found, not placeholder text.`;
+
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 4000,
+        temperature: 0.3,
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from AI');
+      }
+
+      // Try to parse as JSON, otherwise return structured text
+      try {
+        return JSON.parse(content.text);
+      } catch {
+        // If not valid JSON, structure it
+        return {
+          rawExtraction: content.text,
+          requirements: this.parseRequirementsText(content.text)
+        };
+      }
+    } catch (error) {
+      console.error('[AIService] Error extracting requirements:', error);
+      throw error;
+    }
+  }
+
+  private parseRequirementsText(text: string): any {
+    // Basic parser for non-JSON responses
+    const sections = text.split(/\n\n/);
+    const requirements: any = {};
+
+    sections.forEach(section => {
+      const lines = section.split('\n');
+      if (lines[0] && lines[0].includes(':')) {
+        const [key, ...valueParts] = lines[0].split(':');
+        requirements[key.trim()] = valueParts.join(':').trim();
+      }
+    });
+
+    return requirements;
   }
   
   private async cacheSummary(type: 'document' | 'web_source' | 'knowledge', identifier: string, summary: DocumentSummary): Promise<void> {
@@ -92,65 +166,69 @@ export class AIService {
   async generateForm470Response(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting Form 470 response generation for ${context.projectName}`);
 
-    if (onProgress) onProgress('Analyzing Form 470 requirements...', 20);
+    if (onProgress) onProgress('Extracting Form 470 requirements...', 20);
 
-    const prompt = `You are a vendor responding to a Form 470 posted by a school or library for E-rate funding.
+    // First, extract the actual requirements from the Form 470
+    let extractedRequirements = {};
+    if (context.documents && context.documents.length > 0) {
+      const mainDoc = context.documents[0];
+      let documentContent = '';
 
-    CRITICAL E-RATE CONTEXT:
-    - Form 470s are competitive bidding documents for the E-rate program
-    - Schools/libraries receive ${context.documents[0]?.metadata?.discountPercentage || 40}-90% discounts on eligible services
-    - You must demonstrate E-rate expertise and compliance
-    - Price is often the primary evaluation factor due to "lowest cost" E-rate requirements
-    - All services must be E-rate eligible
+      // Parse the document content
+      if (typeof mainDoc.content === 'string') {
+        try {
+          const parsed = JSON.parse(mainDoc.content);
+          documentContent = parsed.text || JSON.stringify(parsed);
+        } catch {
+          documentContent = mainDoc.content;
+        }
+      } else {
+        documentContent = JSON.stringify(mainDoc.content);
+      }
+
+      // Extract requirements
+      extractedRequirements = await this.extractDocumentRequirements(documentContent, 'Form 470');
+    }
+
+    if (onProgress) onProgress('Analyzing extracted requirements...', 40);
+
+    // Build a response that specifically addresses the extracted requirements
+    const prompt = `You are a vendor responding to a Form 470 for E-rate funding.
+    Generate a TARGETED response that SPECIFICALLY addresses what they asked for.
+
+    EXTRACTED REQUIREMENTS FROM THEIR FORM 470:
+    ${JSON.stringify(extractedRequirements, null, 2)}
 
     PROJECT: ${context.projectName}
     ENTITY: ${context.organizationName}
 
-    Based on the Form 470 document provided, create a comprehensive vendor response that:
+    OUR COMPANY INFORMATION:
+    ${context.companyInfo ? JSON.stringify(context.companyInfo) : 'Not provided'}
 
-    1. **Executive Summary**
-       - Acknowledge the Form 470 application number
-       - Confirm understanding of their E-rate discount percentage
-       - Highlight your E-rate program experience
-       - State your SPIN (Service Provider Identification Number) if available
+    CRITICAL INSTRUCTIONS:
+    1. Address EACH specific requirement they listed
+    2. Quote their requirement, then provide your solution
+    3. Use this structure for each requirement:
+       - "Your Requirement: [quote from Form 470]"
+       - "Our Solution: [specific solution addressing that requirement]"
+       - "Technical Details: [how we meet/exceed the requirement]"
+       - "Pricing: [specific pricing for that item]"
 
-    2. **Proposed Solution**
-       - Address each requested service specifically
-       - Confirm E-rate eligibility for all components
-       - Describe technical approach
-       - Include redundancy and reliability features
+    4. ONLY include company capabilities that directly relate to their requirements
+    5. Be specific - if they want "1000 Mbps fiber to Building A", respond with exactly that
+    6. Include E-rate compliance statements ONLY where relevant to their requirements
+    7. Use their terminology and reference their specific sections/items
 
-    3. **E-rate Compliance**
-       - Confirm all services are eligible under Category 1 or Category 2
-       - Address any special compliance requirements
-       - Reference successful E-rate implementations
+    Generate sections:
+    EXECUTIVE_SUMMARY: Brief overview addressing their main requirements
+    SERVICE_BY_SERVICE_RESPONSE: Detailed response to each service requested
+    PRICING_SUMMARY: Clear pricing for each requested item
+    IMPLEMENTATION_TIMELINE: Timeline specific to their requirements
+    COMPLIANCE_STATEMENT: E-rate eligibility confirmation
 
-    4. **Pricing Strategy**
-       - Present pricing that considers their discount percentage
-       - Show both pre-discount and post-discount costs
-       - Emphasize value and total cost of ownership
-       - Include any E-rate specific pricing models
+    Make it SPECIFIC to their actual requirements, not generic.`;
 
-    5. **Implementation Timeline**
-       - Align with E-rate funding year (July 1 - June 30)
-       - Account for E-rate approval processes
-       - Include milestone dates
-
-    6. **References**
-       - Prioritize other E-rate customers
-       - Include similar sized schools/libraries
-       - Mention successful E-rate audits if applicable
-
-    TONE: Professional, compliant, and focused on E-rate program requirements
-    LENGTH: Comprehensive but concise - schools evaluate many bids
-
-    Form 470 Document Content:
-    ${JSON.stringify(context.documents[0]?.content || '').substring(0, 30000)}
-
-    Additional Context:
-    ${context.chatContext ? JSON.stringify(context.chatContext) : 'None'}`;
-
-    if (onProgress) onProgress('Generating E-rate compliant response...', 60);
+    if (onProgress) onProgress('Generating targeted response...', 60);
 
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
@@ -158,31 +236,59 @@ export class AIService {
       messages: [{ role: 'user', content: prompt }]
     });
 
-    if (onProgress) onProgress('Finalizing Form 470 response...', 90);
+    if (onProgress) onProgress('Formatting Form 470 response...', 90);
 
     const content = response.content[0];
     if (content.type !== 'text') {
       throw new Error('Unexpected response type from AI');
     }
 
-    return { content: content.text };
+    // Parse the response into sections
+    const sections = this.parseAIResponse(content.text);
+
+    return sections;
   }
 
   async generateRFIContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting RFI generation for ${context.projectName}`);
     console.log(`[AIService] Processing ${context.documents.length} documents and ${context.webSources.length} web sources`);
     console.log(`[AIService] Target length: ${context.targetLength} pages`);
-    
+
+    if (onProgress) onProgress('Extracting RFI requirements...', 20);
+
+    // First, extract the actual requirements from the RFI if documents exist
+    let extractedRequirements = {};
+    if (context.documents && context.documents.length > 0) {
+      const mainDoc = context.documents[0];
+      let documentContent = '';
+
+      // Parse the document content
+      if (typeof mainDoc.content === 'string') {
+        try {
+          const parsed = JSON.parse(mainDoc.content);
+          documentContent = parsed.text || JSON.stringify(parsed);
+        } catch {
+          documentContent = mainDoc.content;
+        }
+      } else {
+        documentContent = JSON.stringify(mainDoc.content);
+      }
+
+      // Extract requirements
+      extractedRequirements = await this.extractDocumentRequirements(documentContent, 'RFI');
+      console.log(`[AIService] Extracted requirements from RFI`);
+    }
+
     if (onProgress) onProgress('Building AI prompt...', 65);
-    
+
     // For documents over 15 pages, we'll need to use chunking
     const needsChunking = (context.targetLength || 15) > 15;
     if (needsChunking) {
       console.log(`[AIService] Document requires chunking strategy for ${context.targetLength} pages`);
-      return this.generateRFIContentChunked(context, onProgress);
+      return this.generateRFIContentChunked({ ...context, extractedRequirements }, onProgress);
     }
-    
-    const prompt = await this.buildRFIPrompt(context, onProgress);
+
+    const prompt = await this.buildRFIPrompt({ ...context, extractedRequirements }, onProgress);
     console.log(`[AIService] Prompt built, length: ${prompt.length} chars`);
     
     if (onProgress) onProgress('Sending to AI for generation...', 75);
@@ -260,6 +366,45 @@ export class AIService {
   }
 
   async generateRFPContent(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+    console.log(`[AIService] Starting RFP response generation for ${context.projectName}`);
+
+    if (onProgress) onProgress('Extracting RFP requirements...', 20);
+
+    // First, extract the actual requirements from the RFP
+    let extractedRequirements = {};
+    if (context.documents && context.documents.length > 0) {
+      const mainDoc = context.documents[0];
+      let documentContent = '';
+
+      // Parse the document content
+      if (typeof mainDoc.content === 'string') {
+        try {
+          const parsed = JSON.parse(mainDoc.content);
+          documentContent = parsed.text || JSON.stringify(parsed);
+        } catch {
+          documentContent = mainDoc.content;
+        }
+      } else {
+        documentContent = JSON.stringify(mainDoc.content);
+      }
+
+      // Extract requirements
+      extractedRequirements = await this.extractDocumentRequirements(documentContent, 'RFP');
+      console.log(`[AIService] Extracted requirements from RFP`);
+    }
+
+    if (onProgress) onProgress('Analyzing RFP requirements...', 40);
+
+    // Then generate targeted response using the original method with extracted requirements
+    const enhancedContext = {
+      ...context,
+      extractedRequirements
+    };
+
+    return this.generateRFPContentWithRequirements(enhancedContext, onProgress);
+  }
+
+  private async generateRFPContentWithRequirements(context: DocumentContext & { extractedRequirements?: any }, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Starting RFP generation for ${context.projectName}`);
     console.log(`[AIService] Processing ${context.documents.length} documents and ${context.webSources.length} web sources`);
     console.log(`[AIService] Target length: ${context.targetLength} pages`);
@@ -350,10 +495,68 @@ export class AIService {
     }
   }
 
-  private async buildRFIPrompt(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<string> {
-    let prompt = `You are helping create a comprehensive Request for Information (RFI) document for ${context.organizationName} regarding ${context.projectName}.
+  private async buildRFIPrompt(context: DocumentContext & { extractedRequirements?: any }, onProgress?: (message: string, progress: number) => void): Promise<string> {
+    let prompt = '';
 
-Based on the following context, generate professional, detailed content for each section of the RFI:
+    // Add extracted requirements first if available
+    if (context.extractedRequirements) {
+      prompt += `IMPORTANT: The following requirements were extracted from the RFI document. You MUST address each of these specifically in your response:
+
+=== EXTRACTED RFI REQUIREMENTS ===
+`;
+
+      // Add overview
+      if (context.extractedRequirements.overview) {
+        prompt += `\nPROJECT OVERVIEW:\n${context.extractedRequirements.overview}\n`;
+      }
+
+      // Add specific requirements or questions
+      if (context.extractedRequirements.requirements) {
+        prompt += `\nINFORMATION REQUESTED:\n`;
+        for (const req of context.extractedRequirements.requirements) {
+          prompt += `- ${req.category}: ${req.description}\n`;
+          if (req.specifications?.length > 0) {
+            for (const spec of req.specifications) {
+              prompt += `  • ${spec}\n`;
+            }
+          }
+        }
+      }
+
+      // Add specific questions if they exist
+      if (context.rfiQuestions && context.rfiQuestions.length > 0) {
+        prompt += `\nSPECIFIC QUESTIONS TO ANSWER:\n`;
+        for (const q of context.rfiQuestions) {
+          prompt += `Q: ${q.question_text}\n`;
+          if (q.answer) {
+            prompt += `Suggested Answer: ${q.answer}\n`;
+          }
+        }
+      }
+
+      // Add evaluation criteria
+      if (context.extractedRequirements.evaluationCriteria) {
+        prompt += `\nEVALUATION CRITERIA:\n`;
+        for (const criteria of context.extractedRequirements.evaluationCriteria) {
+          prompt += `- ${criteria.name}${criteria.weight ? ` (${criteria.weight})` : ''}: ${criteria.description}\n`;
+        }
+      }
+
+      // Add timeline
+      if (context.extractedRequirements.timeline) {
+        prompt += `\nTIMELINE:\n`;
+        for (const [key, value] of Object.entries(context.extractedRequirements.timeline)) {
+          if (value) prompt += `- ${key}: ${value}\n`;
+        }
+      }
+
+      prompt += `\n=== END OF EXTRACTED REQUIREMENTS ===\n\n`;
+      prompt += `CRITICAL: Your response MUST specifically address each of the requirements and questions listed above.\n\n`;
+    }
+
+    prompt += `You are helping create a comprehensive response to an RFI from ${context.organizationName} regarding ${context.projectName}.
+
+Based on the following context and the extracted requirements above, generate professional, detailed content that directly addresses their needs:
 
 `;
 
@@ -688,10 +891,65 @@ ANTI-HALLUCINATION RULES:
     return prompt;
   }
 
-  private async buildRFPPrompt(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<string> {
-    let prompt = `You are helping create a comprehensive Request for Proposal (RFP) document for ${context.organizationName} regarding ${context.projectName}.
+  private async buildRFPPrompt(context: DocumentContext & { extractedRequirements?: any }, onProgress?: (message: string, progress: number) => void): Promise<string> {
+    let prompt = '';
 
-Based on the following context, generate professional, detailed content for each section of the RFP:
+    // Add extracted requirements first if available
+    if (context.extractedRequirements) {
+      prompt += `IMPORTANT: The following requirements were extracted from the RFP document. You MUST address each of these specifically in your response:
+
+=== EXTRACTED RFP REQUIREMENTS ===
+`;
+
+      // Add overview
+      if (context.extractedRequirements.overview) {
+        prompt += `\nPROJECT OVERVIEW:\n${context.extractedRequirements.overview}\n`;
+      }
+
+      // Add specific requirements
+      if (context.extractedRequirements.requirements) {
+        prompt += `\nSPECIFIC REQUIREMENTS:\n`;
+        for (const req of context.extractedRequirements.requirements) {
+          prompt += `- ${req.category}: ${req.description}\n`;
+          if (req.specifications?.length > 0) {
+            for (const spec of req.specifications) {
+              prompt += `  • ${spec}\n`;
+            }
+          }
+        }
+      }
+
+      // Add evaluation criteria
+      if (context.extractedRequirements.evaluationCriteria) {
+        prompt += `\nEVALUATION CRITERIA:\n`;
+        for (const criteria of context.extractedRequirements.evaluationCriteria) {
+          prompt += `- ${criteria.name}${criteria.weight ? ` (${criteria.weight})` : ''}: ${criteria.description}\n`;
+        }
+      }
+
+      // Add timeline
+      if (context.extractedRequirements.timeline) {
+        prompt += `\nTIMELINE:\n`;
+        for (const [key, value] of Object.entries(context.extractedRequirements.timeline)) {
+          if (value) prompt += `- ${key}: ${value}\n`;
+        }
+      }
+
+      // Add submission requirements
+      if (context.extractedRequirements.submissionRequirements) {
+        prompt += `\nSUBMISSION REQUIREMENTS:\n`;
+        for (const [key, value] of Object.entries(context.extractedRequirements.submissionRequirements)) {
+          if (value) prompt += `- ${key}: ${value}\n`;
+        }
+      }
+
+      prompt += `\n=== END OF EXTRACTED REQUIREMENTS ===\n\n`;
+      prompt += `CRITICAL: Your response MUST specifically address each of the requirements listed above. Quote the requirement first, then provide your response.\n\n`;
+    }
+
+    prompt += `You are helping create a comprehensive response to an RFP from ${context.organizationName} regarding ${context.projectName}.
+
+Based on the following context and the extracted requirements above, generate professional, detailed content that directly addresses their needs:
 
 `;
 
@@ -935,7 +1193,7 @@ ANTI-HALLUCINATION RULES:
     return prompt;
   }
 
-  private async generateRFIContentChunked(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+  private async generateRFIContentChunked(context: DocumentContext & { extractedRequirements?: any }, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Using chunked generation for ${context.targetLength} page document`);
     
     const sections: Record<string, string> = {};
@@ -959,7 +1217,7 @@ ANTI-HALLUCINATION RULES:
     return sections;
   }
 
-  private async generateRFIChunk(context: DocumentContext, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+  private async generateRFIChunk(context: DocumentContext & { extractedRequirements?: any }, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     const prompt = await this.buildRFIChunkPrompt(context, sectionNames);
     
     try {
@@ -983,9 +1241,29 @@ ANTI-HALLUCINATION RULES:
     }
   }
 
-  private async buildRFIChunkPrompt(context: DocumentContext, sectionNames: string[]): Promise<string> {
+  private async buildRFIChunkPrompt(context: DocumentContext & { extractedRequirements?: any }, sectionNames: string[]): Promise<string> {
     // Build a focused prompt for specific sections
-    let prompt = `You are helping create specific sections of a Request for Information (RFI) document for ${context.organizationName} regarding ${context.projectName}.
+    let prompt = '';
+
+    // Add extracted requirements if available and relevant
+    if (context.extractedRequirements && sectionNames.some(s => s === 'INFORMATION_REQUESTED' || s === 'PROJECT_SCOPE')) {
+      prompt += `IMPORTANT: Address these extracted requirements in your response:
+
+=== EXTRACTED REQUIREMENTS ===
+`;
+      if (context.extractedRequirements.overview) {
+        prompt += `\nOVERVIEW:\n${context.extractedRequirements.overview}\n`;
+      }
+      if (context.extractedRequirements.requirements) {
+        prompt += `\nREQUIREMENTS:\n`;
+        for (const req of context.extractedRequirements.requirements) {
+          prompt += `- ${req.category}: ${req.description}\n`;
+        }
+      }
+      prompt += `=== END REQUIREMENTS ===\n\n`;
+    }
+
+    prompt += `You are helping create specific sections of a Request for Information (RFI) response to ${context.organizationName} regarding ${context.projectName}.
 
 Generate ONLY these sections with detailed, comprehensive content:
 ${sectionNames.join(', ')}
@@ -1026,7 +1304,7 @@ Services: ${context.companyInfo.services || 'Not specified'}
     return prompt;
   }
 
-  private async generateRFPContentChunked(context: DocumentContext, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+  private async generateRFPContentChunked(context: DocumentContext & { extractedRequirements?: any }, onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     console.log(`[AIService] Using chunked generation for ${context.targetLength} page RFP document`);
     
     const sections: Record<string, string> = {};
@@ -1050,7 +1328,7 @@ Services: ${context.companyInfo.services || 'Not specified'}
     return sections;
   }
 
-  private async generateRFPChunk(context: DocumentContext, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
+  private async generateRFPChunk(context: DocumentContext & { extractedRequirements?: any }, sectionNames: string[], onProgress?: (message: string, progress: number) => void): Promise<Record<string, string>> {
     const prompt = await this.buildRFPChunkPrompt(context, sectionNames);
     
     try {
@@ -1074,9 +1352,35 @@ Services: ${context.companyInfo.services || 'Not specified'}
     }
   }
 
-  private async buildRFPChunkPrompt(context: DocumentContext, sectionNames: string[]): Promise<string> {
+  private async buildRFPChunkPrompt(context: DocumentContext & { extractedRequirements?: any }, sectionNames: string[]): Promise<string> {
     // Build a focused prompt for specific RFP sections
-    let prompt = `You are helping create specific sections of a Request for Proposal (RFP) response for ${context.organizationName} regarding ${context.projectName}.
+    let prompt = '';
+
+    // Add extracted requirements if available and relevant for technical/functional sections
+    const technicalSections = ['TECHNICAL_REQUIREMENTS', 'FUNCTIONAL_REQUIREMENTS', 'SCOPE_OF_WORK', 'IMPLEMENTATION_APPROACH'];
+    if (context.extractedRequirements && sectionNames.some(s => technicalSections.includes(s))) {
+      prompt += `IMPORTANT: Address these extracted RFP requirements in your response:
+
+=== EXTRACTED REQUIREMENTS ===
+`;
+      if (context.extractedRequirements.overview) {
+        prompt += `\nOVERVIEW:\n${context.extractedRequirements.overview}\n`;
+      }
+      if (context.extractedRequirements.requirements) {
+        prompt += `\nREQUIREMENTS:\n`;
+        for (const req of context.extractedRequirements.requirements) {
+          prompt += `- ${req.category}: ${req.description}\n`;
+          if (req.specifications?.length > 0) {
+            for (const spec of req.specifications) {
+              prompt += `  • ${spec}\n`;
+            }
+          }
+        }
+      }
+      prompt += `=== END REQUIREMENTS ===\n\n`;
+    }
+
+    prompt += `You are helping create specific sections of a Request for Proposal (RFP) response for ${context.organizationName} regarding ${context.projectName}.
 
 Generate ONLY these sections with detailed, comprehensive content:
 ${sectionNames.join(', ')}
