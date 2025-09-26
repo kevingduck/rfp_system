@@ -112,16 +112,90 @@ export function DraftPreview({ draft, onClose, onExport }: DraftPreviewProps) {
   };
 
   const formatContent = (content: string) => {
+    let formatted = content;
+
+    // Remove citations if needed
     if (!showCitations) {
-      // Remove citations for clean view
-      return content.replace(/\[Source:[^\]]+\]/g, '');
+      formatted = formatted.replace(/\[Source:[^\]]+\]/g, '');
+    } else {
+      // Highlight citations
+      formatted = formatted.replace(
+        /\[Source:([^\]]+)\]/g,
+        '<span class="citation" title="$1">[Source:$1]</span>'
+      );
     }
-    
-    // Highlight citations
-    return content.replace(
-      /\[Source:([^\]]+)\]/g,
-      '<span class="citation" title="$1">[Source:$1]</span>'
-    );
+
+    // Convert markdown-style headers
+    formatted = formatted.replace(/^#{1,6}\s+(.+)$/gm, (match, p1) => {
+      const level = match.match(/^#+/)[0].length;
+      const sizes = {
+        1: 'text-2xl font-bold mt-4 mb-2',
+        2: 'text-xl font-bold mt-3 mb-2',
+        3: 'text-lg font-semibold mt-2 mb-1',
+        4: 'text-base font-semibold mt-2 mb-1',
+        5: 'text-sm font-semibold mt-1 mb-1',
+        6: 'text-sm font-medium mt-1 mb-1'
+      };
+      return `<h${level} class="${sizes[level]}">${p1}</h${level}>`;
+    });
+
+    // Handle bold text
+    formatted = formatted.replace(/\*\*([^\*]+)\*\*/g, '<strong class="font-semibold">$1</strong>');
+
+    // Handle italic text
+    formatted = formatted.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+    formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+    // Convert bullet points (-, *, •) to proper lists
+    const lines = formatted.split('\n');
+    const processedLines = [];
+    let inList = false;
+    let listType = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const bulletMatch = line.match(/^[\s]*[\-\*•]\s+(.+)$/);
+      const numberMatch = line.match(/^[\s]*(\d+)[\.)\]]\s+(.+)$/);
+
+      if (bulletMatch) {
+        if (!inList || listType !== 'ul') {
+          if (inList) processedLines.push(`</${listType}>`);
+          processedLines.push('<ul class="list-disc ml-6 space-y-1">');
+          inList = true;
+          listType = 'ul';
+        }
+        processedLines.push(`<li>${bulletMatch[1]}</li>`);
+      } else if (numberMatch) {
+        if (!inList || listType !== 'ol') {
+          if (inList) processedLines.push(`</${listType}>`);
+          processedLines.push('<ol class="list-decimal ml-6 space-y-1">');
+          inList = true;
+          listType = 'ol';
+        }
+        processedLines.push(`<li>${numberMatch[2]}</li>`);
+      } else {
+        if (inList) {
+          processedLines.push(`</${listType}>`);
+          inList = false;
+          listType = null;
+        }
+
+        // Add paragraph tags to non-empty lines that aren't already HTML
+        if (line.trim() && !line.startsWith('<')) {
+          processedLines.push(`<p class="mb-2">${line}</p>`);
+        } else if (line.trim()) {
+          processedLines.push(line);
+        } else {
+          processedLines.push('<br/>');
+        }
+      }
+    }
+
+    if (inList) {
+      processedLines.push(`</${listType}>`);
+    }
+
+    return processedLines.join('\n');
   };
 
   const extractCitations = (content: string): string[] => {

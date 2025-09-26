@@ -57,7 +57,7 @@ interface ConversationContext {
 
 interface EnhancedChatAssistantProps {
   projectId: string;
-  projectType: 'RFI' | 'RFP';
+  projectType: 'RFI' | 'RFP' | 'FORM_470';
   documents: any[];
   questions: any[];
   onUpdateQuestions: (questions: any[]) => void;
@@ -68,12 +68,13 @@ interface EnhancedChatAssistantProps {
   onGenerateDraft: () => Promise<void>;
   onRefreshQuestions?: () => Promise<void>;
   onSetMainDocument?: (documentId: string) => Promise<void>;
+  onDraftUpdated?: () => Promise<void>;
   mainDocument?: any;
   currentDraft?: any;
 }
 
-export function EnhancedChatAssistant({ 
-  projectId, 
+export function EnhancedChatAssistant({
+  projectId,
   projectType,
   documents,
   questions,
@@ -85,6 +86,7 @@ export function EnhancedChatAssistant({
   onGenerateDraft,
   onRefreshQuestions,
   onSetMainDocument,
+  onDraftUpdated,
   mainDocument,
   currentDraft
 }: EnhancedChatAssistantProps) {
@@ -204,12 +206,10 @@ Type "help" for commands or "status" to see project overview.`,
       if (data.action) {
         switch (data.action.type) {
           case 'update_draft':
-            // Draft has been updated, trigger refresh
-            if (onRefreshQuestions) {
-              await onRefreshQuestions();
+            // Draft has been updated, refresh it in-place
+            if (onDraftUpdated) {
+              await onDraftUpdated();
             }
-            // Reload the page to show updated draft
-            window.location.reload();
             break;
 
           case 'generate_draft':
@@ -861,13 +861,45 @@ ${documents.map((doc, i) =>
     setInputValue('');
     setIsProcessing(true);
 
-    // Add thinking indicator if the message might use AI
+    // Add context-aware thinking indicator if the message might use AI
     const needsAI = !['help', 'status'].includes(message.toLowerCase());
     if (needsAI) {
+      // Generate context-aware thinking message
+      let thinkingText = '🤔 Thinking...';
+      const lowerMsg = message.toLowerCase();
+
+      if (lowerMsg.includes('draft')) {
+        if (lowerMsg.includes('shorter') || lowerMsg.includes('concise') || lowerMsg.includes('brief')) {
+          thinkingText = '✂️ Making the draft more concise...';
+        } else if (lowerMsg.includes('longer') || lowerMsg.includes('detail') || lowerMsg.includes('expand')) {
+          thinkingText = '📝 Adding more detail to the draft...';
+        } else if (lowerMsg.includes('remove') || lowerMsg.includes('delete')) {
+          thinkingText = '🗑️ Removing content from the draft...';
+        } else if (lowerMsg.includes('add') || lowerMsg.includes('include')) {
+          thinkingText = '➕ Adding content to the draft...';
+        } else if (lowerMsg.includes('professional') || lowerMsg.includes('formal')) {
+          thinkingText = '🎩 Making the draft more professional...';
+        } else if (lowerMsg.includes('simple') || lowerMsg.includes('readable') || lowerMsg.includes('plain')) {
+          thinkingText = '📖 Simplifying the language...';
+        } else if (lowerMsg.includes('form 470') || lowerMsg.includes('470')) {
+          thinkingText = '📋 Formatting for Form 470 response...';
+        } else {
+          thinkingText = '✏️ Updating the draft...';
+        }
+      } else if (lowerMsg.includes('question')) {
+        thinkingText = '❓ Processing questions...';
+      } else if (lowerMsg.includes('document')) {
+        thinkingText = '📄 Processing documents...';
+      } else if (lowerMsg.includes('answer')) {
+        thinkingText = '💡 Working on answers...';
+      } else {
+        thinkingText = '🤔 Processing your request...';
+      }
+
       const thinkingMessage: Message = {
         id: `thinking-${Date.now()}`,
         type: 'bot',
-        content: '🤔 Thinking...',
+        content: thinkingText,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, thinkingMessage]);

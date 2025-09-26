@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType } from 'docx';
 import { query } from './pg-db';
 import { AIService } from './ai-service';
+import { getForm470Structure, FORM_470_SECTIONS } from './form470-template';
 
 export interface RFPSection {
   title: string;

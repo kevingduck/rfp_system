@@ -1612,6 +1612,7 @@ export default function ProjectPage() {
           onGenerateDraft={handleGenerateDraft}
           onRefreshQuestions={fetchQuestions}
           onSetMainDocument={setMainDocument}
+          onDraftUpdated={() => fetchExistingDraft()}
           mainDocument={mainRFIDocument}
           currentDraft={draftData}
         />

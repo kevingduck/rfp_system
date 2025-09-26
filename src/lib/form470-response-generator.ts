@@ -1,6 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType } from 'docx';
 import { query } from './pg-db';
 import { AIService } from './ai-service';
+import { getForm470Structure, FORM_470_SECTIONS } from './form470-template';
 
 export interface Form470Details {
   applicationNumber: string;
@@ -190,10 +191,85 @@ export class Form470ResponseGenerator {
     const companyResult = await query('SELECT * FROM company_info LIMIT 1');
     const companyInfo = companyResult.rows[0] || {};
 
+    // Get professional template structure
+    const templateStructure = getForm470Structure();
+
     // Calculate pricing with E-rate discounts
     const monthlyRecurring = 5000; // Example - would be calculated based on requirements
     const oneTimeCharges = 10000;
     const discountRate = form470Details.discountPercentage / 100;
+
+    // Build sections using professional template
+    const sections = [];
+
+    // Cover Page
+    sections.push({
+      title: FORM_470_SECTIONS.coverPage.title,
+      content: templateStructure.coverPage
+        .replace('[Your SPIN Number]', companyInfo.spin_number || 'SPIN123456')
+        .replace('[Your Tax ID]', companyInfo.tax_id || 'XX-XXXXXXX')
+        .replace('[Your FCC Number]', companyInfo.fcc_reg_number || 'FCC123456')
+        .replace(/\[Company Name\]/g, companyInfo.company_name || 'Your Company')
+        .replace('[District Name]', form470Details.entityName)
+        .replace('[470 Number]', form470Details.applicationNumber)
+        .replace('[Current Date]', new Date().toLocaleDateString())
+    });
+
+    // Executive Letter
+    sections.push({
+      title: FORM_470_SECTIONS.executiveLetter.title,
+      content: templateStructure.executiveLetter
+        .replace(/\[Company Name\]/g, companyInfo.company_name || 'Your Company')
+        .replace(/\[District Name\]/g, form470Details.entityName)
+        .replace('[470 Number]', form470Details.applicationNumber)
+        .replace('[Category 1/2]', form470Details.serviceCategory)
+    });
+
+    // Data Sheets
+    sections.push({
+      title: FORM_470_SECTIONS.dataSheets.title,
+      content: templateStructure.dataSheets
+    });
+
+    // Background Information
+    sections.push({
+      title: FORM_470_SECTIONS.backgroundInformation.title,
+      content: templateStructure.backgroundInformation
+        .replace(/\[Company Name\]/g, companyInfo.company_name || 'Your Company')
+    });
+
+    // Key Personnel & References
+    sections.push({
+      title: FORM_470_SECTIONS.keyPersonnel.title,
+      content: templateStructure.keyPersonnel
+    });
+
+    // Scope of Services
+    sections.push({
+      title: FORM_470_SECTIONS.scopeOfServices.title,
+      content: templateStructure.scopeOfServices
+    });
+
+    // Pricing
+    sections.push({
+      title: 'Pricing Proposal',
+      content: `## E-Rate Pricing Summary
+
+### Monthly Recurring Costs
+- **Pre-discount:** $${monthlyRecurring.toLocaleString()}
+- **E-Rate Discount (${form470Details.discountPercentage}%):** -$${(monthlyRecurring * discountRate).toLocaleString()}
+- **Your Cost:** $${(monthlyRecurring * (1 - discountRate)).toLocaleString()}
+
+### One-Time Installation
+- **Pre-discount:** $${oneTimeCharges.toLocaleString()}
+- **E-Rate Discount (${form470Details.discountPercentage}%):** -$${(oneTimeCharges * discountRate).toLocaleString()}
+- **Your Cost:** $${(oneTimeCharges * (1 - discountRate)).toLocaleString()}
+
+### Payment Terms
+- Net 60 days to align with E-Rate disbursements
+- SPI (Service Provider Invoice) billing available
+- No interest charges for E-Rate payment delays`
+    });
 
     return {
       projectName: `Form 470 Response - ${form470Details.entityName}`,
@@ -215,24 +291,7 @@ export class Form470ResponseGenerator {
       },
       timeline: 'Implementation within 60 days of contract signing',
       erateExperience: companyInfo.erate_experience || 'Extensive E-rate experience with 100+ successful implementations',
-      sections: [
-        {
-          title: 'Executive Summary',
-          content: `Response to Form 470 #${form470Details.applicationNumber} for ${form470Details.entityName}`
-        },
-        {
-          title: 'E-rate Compliance',
-          content: 'All proposed services are fully E-rate eligible under Category 1 guidelines.'
-        },
-        {
-          title: 'Proposed Solution',
-          content: strategy
-        },
-        {
-          title: 'Pricing',
-          content: `Taking into account your ${form470Details.discountPercentage}% E-rate discount...`
-        }
-      ]
+      sections
     };
   }
 
@@ -240,107 +299,105 @@ export class Form470ResponseGenerator {
     const doc = new Document({
       sections: [{
         properties: {},
-        children: [
-          // Header
-          new Paragraph({
-            text: 'Form 470 Response',
-            heading: HeadingLevel.HEADING_1,
-            alignment: 'center'
-          }),
-          new Paragraph({
-            text: data.entityName,
-            heading: HeadingLevel.HEADING_2,
-            alignment: 'center'
-          }),
-          new Paragraph({
-            text: `Application #${data.form470Details.applicationNumber}`,
-            alignment: 'center'
-          }),
-          new Paragraph({ text: '' }),
-
-          // Vendor Information
-          new Paragraph({
-            text: 'Vendor Information',
-            heading: HeadingLevel.HEADING_2
-          }),
-          new Paragraph({
-            text: `Company: ${data.vendorInfo.name}`
-          }),
-          new Paragraph({
-            text: `Contact: ${data.vendorInfo.email} | ${data.vendorInfo.phone}`
-          }),
-          new Paragraph({
-            text: `SPIN: ${data.vendorInfo.spinNumber || 'Pending'}`
-          }),
-          new Paragraph({
-            text: `FCC Registration: ${data.vendorInfo.fccRegNumber || 'Pending'}`
-          }),
-          new Paragraph({ text: '' }),
-
-          // Service Category Response
-          new Paragraph({
-            text: 'Services Proposed',
-            heading: HeadingLevel.HEADING_2
-          }),
-          new Paragraph({
-            text: `Service Category: ${data.form470Details.serviceCategory}`
-          }),
-          new Paragraph({
-            text: `Services: ${data.form470Details.servicesRequested.join(', ')}`
-          }),
-          new Paragraph({ text: '' }),
-
-          // Pricing with E-rate Discounts
-          new Paragraph({
-            text: 'E-rate Pricing Summary',
-            heading: HeadingLevel.HEADING_2
-          }),
-          new Paragraph({
-            text: `Your E-rate Discount: ${data.form470Details.discountPercentage}%`
-          }),
-          new Paragraph({
-            text: `Monthly Recurring: $${data.pricing.monthlyRecurring.toLocaleString()}`
-          }),
-          new Paragraph({
-            text: `Your Cost After E-rate Discount: $${data.pricing.discountedMonthly.toLocaleString()}/month`,
-            bold: true
-          }),
-          new Paragraph({ text: '' }),
-
-          // E-rate Experience
-          new Paragraph({
-            text: 'E-rate Program Experience',
-            heading: HeadingLevel.HEADING_2
-          }),
-          new Paragraph({
-            text: data.erateExperience
-          }),
-          new Paragraph({ text: '' }),
-
-          // Additional sections
-          ...data.sections.flatMap(section => [
-            new Paragraph({
-              text: section.title,
-              heading: HeadingLevel.HEADING_2
-            }),
-            new Paragraph({
-              text: section.content
-            }),
-            new Paragraph({ text: '' })
-          ]),
-
-          // Compliance Statement
-          new Paragraph({
-            text: 'E-rate Compliance Certification',
-            heading: HeadingLevel.HEADING_2
-          }),
-          new Paragraph({
-            text: 'We certify that all proposed services are E-rate eligible and comply with all applicable FCC rules and USAC requirements.'
-          })
-        ]
+        children: this.buildDocumentChildren(data)
       }]
     });
 
     return doc;
+  }
+
+  private buildDocumentChildren(data: Form470ResponseData): any[] {
+    const children = [];
+
+    // Process each section from the template
+    data.sections.forEach((section, index) => {
+      // Add section title
+      children.push(
+        new Paragraph({
+          text: section.title,
+          heading: HeadingLevel.HEADING_1,
+          pageBreakBefore: index > 0 // New page for each major section except first
+        })
+      );
+
+      // Process section content - handle markdown-like formatting
+      const lines = section.content.split('\n');
+      lines.forEach(line => {
+        // Handle headers (##, ###, etc.)
+        if (line.startsWith('##')) {
+          const level = line.match(/^#+/)[0].length;
+          const text = line.replace(/^#+\s*/, '');
+          children.push(
+            new Paragraph({
+              text,
+              heading: level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3
+            })
+          );
+        }
+        // Handle bullet points
+        else if (line.match(/^[\-\*•]\s+/)) {
+          const text = line.replace(/^[\-\*•]\s+/, '');
+          children.push(
+            new Paragraph({
+              text,
+              bullet: { level: 0 }
+            })
+          );
+        }
+        // Handle numbered lists
+        else if (line.match(/^\d+\.\s+/)) {
+          const text = line.replace(/^\d+\.\s+/, '');
+          children.push(
+            new Paragraph({
+              text,
+              numbering: { reference: 'default-numbering', level: 0 }
+            })
+          );
+        }
+        // Handle table-like content (for pricing)
+        else if (line.includes('|') && line.split('|').length > 2) {
+          // This would need more complex table handling - skip for now
+          children.push(new Paragraph({ text: line.replace(/\|/g, ' ') }));
+        }
+        // Handle bold text
+        else if (line.includes('**')) {
+          const parts = line.split('**');
+          const runs = [];
+          parts.forEach((part, i) => {
+            if (i % 2 === 1) {
+              runs.push(new TextRun({ text: part, bold: true }));
+            } else if (part) {
+              runs.push(new TextRun({ text: part }));
+            }
+          });
+          if (runs.length > 0) {
+            children.push(new Paragraph({ children: runs }));
+          }
+        }
+        // Regular text
+        else if (line.trim()) {
+          children.push(new Paragraph({ text: line }));
+        }
+        // Empty lines
+        else {
+          children.push(new Paragraph({ text: '' }));
+        }
+      });
+    });
+
+    // Add compliance footer
+    children.push(
+      new Paragraph({ text: '' }),
+      new Paragraph({
+        text: 'E-rate Compliance Certification',
+        heading: HeadingLevel.HEADING_2,
+        pageBreakBefore: true
+      }),
+      new Paragraph({
+        text: 'We certify that all proposed services are E-rate eligible and comply with all applicable FCC rules and USAC requirements.'
+      })
+    );
+
+    return children;
   }
 }
