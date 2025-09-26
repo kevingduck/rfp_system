@@ -101,6 +101,21 @@ async function initializeDatabase() {
         email TEXT,
         phone TEXT,
         address TEXT,
+        spin_number TEXT,
+        tax_id TEXT,
+        fcc_registration TEXT,
+        contact_name TEXT,
+        contact_title TEXT,
+        contact_email TEXT,
+        contact_phone TEXT,
+        erate_experience TEXT,
+        erate_funding_secured TEXT,
+        districts_served INTEGER,
+        years_in_business INTEGER,
+        key_personnel TEXT,
+        client_references TEXT,
+        founded_year INTEGER,
+        headquarters TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -310,6 +325,33 @@ async function initializeDatabase() {
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP DEFAULT NULL`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_by TEXT DEFAULT NULL`);
     await client.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS current_version INTEGER DEFAULT 1`);
+
+    // Add new company_info columns
+    const companyInfoColumns = [
+      { name: 'spin_number', type: 'TEXT' },
+      { name: 'tax_id', type: 'TEXT' },
+      { name: 'fcc_registration', type: 'TEXT' },
+      { name: 'contact_name', type: 'TEXT' },
+      { name: 'contact_title', type: 'TEXT' },
+      { name: 'contact_email', type: 'TEXT' },
+      { name: 'contact_phone', type: 'TEXT' },
+      { name: 'erate_experience', type: 'TEXT' },
+      { name: 'erate_funding_secured', type: 'TEXT' },
+      { name: 'districts_served', type: 'INTEGER' },
+      { name: 'years_in_business', type: 'INTEGER' },
+      { name: 'key_personnel', type: 'TEXT' },
+      { name: 'client_references', type: 'TEXT' },
+      { name: 'founded_year', type: 'INTEGER' },
+      { name: 'headquarters', type: 'TEXT' }
+    ];
+
+    for (const column of companyInfoColumns) {
+      try {
+        await client.query(`ALTER TABLE company_info ADD COLUMN IF NOT EXISTS ${column.name} ${column.type}`);
+      } catch (err) {
+        // Column might already exist, that's okay
+      }
+    }
     
     console.log('✓ PostgreSQL database initialized successfully');
   } catch (error) {
