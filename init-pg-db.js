@@ -79,9 +79,11 @@ async function initializeDatabase() {
         url TEXT NOT NULL,
         title TEXT,
         content TEXT,
+        metadata TEXT,
         summary_cache TEXT,
         summary_generated_at TIMESTAMP,
         scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
     `);
@@ -320,7 +322,11 @@ async function initializeDatabase() {
     // Fix company_knowledge table
     await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS original_filename TEXT`);
     await client.query(`ALTER TABLE company_knowledge ADD COLUMN IF NOT EXISTS file_type TEXT`);
-    
+
+    // Fix web_sources table - add missing columns
+    await client.query(`ALTER TABLE web_sources ADD COLUMN IF NOT EXISTS metadata TEXT`);
+    await client.query(`ALTER TABLE web_sources ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+
     // Add new columns for archiving and versioning
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP DEFAULT NULL`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_by TEXT DEFAULT NULL`);
